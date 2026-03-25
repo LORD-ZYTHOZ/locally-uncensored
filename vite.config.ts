@@ -5,14 +5,22 @@ import { spawn, execSync, type ChildProcess } from 'child_process'
 import { existsSync, readdirSync } from 'fs'
 import { resolve, join } from 'path'
 import { config } from 'dotenv'
+import { fileURLToPath } from 'url'
+import { dirname } from 'path'
 
-// Load .env file
-config()
+// Load .env file from project root
+const __dirname = dirname(fileURLToPath(import.meta.url))
+config({ path: resolve(__dirname, '.env') })
 
 function findComfyUI(): string | null {
   // 1. Check .env / environment variable
-  if (process.env.COMFYUI_PATH && existsSync(resolve(process.env.COMFYUI_PATH, 'main.py'))) {
-    return process.env.COMFYUI_PATH
+  const envPath = process.env.COMFYUI_PATH
+  console.log(`[ComfyUI] COMFYUI_PATH env: ${envPath || '(not set)'}`)
+  if (envPath) {
+    // Try the path directly (handles spaces in paths)
+    const mainPy = join(envPath, 'main.py')
+    console.log(`[ComfyUI] Checking: ${mainPy} -> ${existsSync(mainPy)}`)
+    if (existsSync(mainPy)) return envPath
   }
   const home = process.env.USERPROFILE || process.env.HOME || ''
   // 2. Check common locations
@@ -59,9 +67,11 @@ function comfyLauncher(): Plugin {
     }
 
     comfyLogs = []
+    console.log(`[ComfyUI] Spawning python in: ${comfyPath}`)
     comfyProcess = spawn('python', ['main.py', '--listen', '127.0.0.1', '--port', '8188'], {
       cwd: comfyPath,
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true,
     })
 
     comfyProcess.stdout?.on('data', (d) => {
@@ -99,19 +109,25 @@ function comfyLauncher(): Plugin {
     name: 'comfy-launcher',
     configureServer(server) {
       // Auto-start ComfyUI when dev server starts
-      isComfyRunning().then(running => {
-        if (!running) {
-          const comfyPath = findComfyUI()
-          if (comfyPath) {
-            console.log(`[ComfyUI] Auto-starting from: ${comfyPath}`)
-            startComfy(comfyPath)
+      setTimeout(async () => {
+        try {
+          const running = await isComfyRunning()
+          if (!running) {
+            const comfyPath = findComfyUI()
+            if (comfyPath) {
+              console.log(`[ComfyUI] Auto-starting from: ${comfyPath}`)
+              const result = startComfy(comfyPath)
+              console.log(`[ComfyUI] Start result: ${result.status}`)
+            } else {
+              console.log('[ComfyUI] Not found. Set COMFYUI_PATH in .env or install ComfyUI.')
+            }
           } else {
-            console.log('[ComfyUI] Not found. Set COMFYUI_PATH in .env or install ComfyUI.')
+            console.log('[ComfyUI] Already running on port 8188')
           }
-        } else {
-          console.log('[ComfyUI] Already running on port 8188')
+        } catch (err) {
+          console.error('[ComfyUI] Auto-start error:', err)
         }
-      })
+      }, 1000)
 
       // Auto-stop ComfyUI when dev server closes
       server.httpServer?.on('close', stopComfy)
@@ -154,15 +170,18 @@ function comfyLauncher(): Plugin {
 
       // API: Status + logs
       server.middlewares.use('/local-api/comfyui-status', async (_req, res) => {
-        const running = await isComfyRunning()
+        let running = false
+        try { running = await isComfyRunning() } catch { /* ignore */ }
         const comfyPath = findComfyUI()
+        const processAlive = comfyProcess !== null && !comfyProcess.killed
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({
           running,
-          starting: comfyProcess !== null && !running,
+          starting: processAlive && !running,
           found: comfyPath !== null,
           path: comfyPath,
           logs: comfyLogs.slice(-20),
+          processAlive,
         }))
       })
     },

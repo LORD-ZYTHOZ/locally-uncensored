@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { ModelType } from '../api/comfyui'
 
 export interface GalleryItem {
   id: string
@@ -9,6 +10,7 @@ export interface GalleryItem {
   prompt: string
   negativePrompt: string
   model: string
+  modelType: ModelType
   seed: number
   steps: number
   cfgScale: number
@@ -21,7 +23,9 @@ interface CreateState {
   mode: 'image' | 'video'
   prompt: string
   negativePrompt: string
-  model: string
+  imageModel: string
+  imageModelType: ModelType
+  videoModel: string
   sampler: string
   steps: number
   cfgScale: number
@@ -38,7 +42,8 @@ interface CreateState {
   setMode: (mode: 'image' | 'video') => void
   setPrompt: (prompt: string) => void
   setNegativePrompt: (negativePrompt: string) => void
-  setModel: (model: string) => void
+  setImageModel: (model: string, type: ModelType) => void
+  setVideoModel: (model: string) => void
   setSampler: (sampler: string) => void
   setSteps: (steps: number) => void
   setCfgScale: (cfgScale: number) => void
@@ -61,7 +66,9 @@ export const useCreateStore = create<CreateState>()(
       mode: 'image',
       prompt: '',
       negativePrompt: '',
-      model: '',
+      imageModel: '',
+      imageModelType: 'unknown' as ModelType,
+      videoModel: '',
       sampler: 'euler',
       steps: 20,
       cfgScale: 7,
@@ -78,7 +85,8 @@ export const useCreateStore = create<CreateState>()(
       setMode: (mode) => set({ mode }),
       setPrompt: (prompt) => set({ prompt }),
       setNegativePrompt: (negativePrompt) => set({ negativePrompt }),
-      setModel: (model) => set({ model }),
+      setImageModel: (model, type) => set({ imageModel: model, imageModelType: type }),
+      setVideoModel: (model) => set({ videoModel: model }),
       setSampler: (sampler) => set({ sampler }),
       setSteps: (steps) => set({ steps }),
       setCfgScale: (cfgScale) => set({ cfgScale }),
@@ -98,7 +106,9 @@ export const useCreateStore = create<CreateState>()(
       name: 'create-store',
       partialize: (state) => ({
         mode: state.mode,
-        model: state.model,
+        imageModel: state.imageModel,
+        imageModelType: state.imageModelType,
+        videoModel: state.videoModel,
         sampler: state.sampler,
         steps: state.steps,
         cfgScale: state.cfgScale,

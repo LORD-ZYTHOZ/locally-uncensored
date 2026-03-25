@@ -1,10 +1,11 @@
 import { useCreateStore } from '../../stores/createStore'
 import { SliderControl } from '../settings/SliderControl'
 import { Dice5 } from 'lucide-react'
+import type { ClassifiedModel, ModelType } from '../../api/comfyui'
 
 interface Props {
-  checkpoints: string[]
-  videoModels: string[]
+  imageModels: ClassifiedModel[]
+  videoModels: ClassifiedModel[]
   samplerList: string[]
 }
 
@@ -23,13 +24,33 @@ const VID_SIZE_PRESETS = [
   { label: '480x768', w: 480, h: 768 },
 ]
 
-export function ParamPanel({ checkpoints, videoModels, samplerList }: Props) {
+const TYPE_BADGE: Record<ModelType, { label: string; color: string }> = {
+  flux: { label: 'FLUX', color: 'bg-purple-500/20 text-purple-300' },
+  sdxl: { label: 'SDXL', color: 'bg-blue-500/20 text-blue-300' },
+  sd15: { label: 'SD 1.5', color: 'bg-green-500/20 text-green-300' },
+  wan: { label: 'Wan', color: 'bg-orange-500/20 text-orange-300' },
+  hunyuan: { label: 'Hunyuan', color: 'bg-red-500/20 text-red-300' },
+  unknown: { label: 'Model', color: 'bg-gray-500/20 text-gray-300' },
+}
+
+export function ParamPanel({ imageModels, videoModels, samplerList }: Props) {
   const store = useCreateStore()
   const isVideo = store.mode === 'video'
   const sizePresets = isVideo ? VID_SIZE_PRESETS : IMG_SIZE_PRESETS
-  const modelList = isVideo ? videoModels : checkpoints
+  const models = isVideo ? videoModels : imageModels
 
   const selectClass = 'w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-gray-400 dark:focus:border-white/20 appearance-none cursor-pointer'
+
+  const handleModelChange = (name: string) => {
+    if (isVideo) {
+      store.setVideoModel(name)
+    } else {
+      const model = imageModels.find(m => m.name === name)
+      store.setImageModel(name, model?.type || 'unknown')
+    }
+  }
+
+  const activeModel = isVideo ? store.videoModel : store.imageModel
 
   return (
     <div className="space-y-4">
@@ -38,12 +59,40 @@ export function ParamPanel({ checkpoints, videoModels, samplerList }: Props) {
         <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">
           {isVideo ? 'Video Model' : 'Image Model'}
         </label>
-        <select value={store.model} onChange={(e) => store.setModel(e.target.value)} className={selectClass}>
-          {modelList.length === 0 && <option value="">No models found</option>}
-          {modelList.map((c) => (
-            <option key={c} value={c}>{c.replace(/\.[^.]+$/, '')}</option>
-          ))}
-        </select>
+        {models.length === 0 ? (
+          <div className="px-3 py-2 rounded-lg bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs">
+            {isVideo
+              ? 'No video models found. Add Wan or Hunyuan models to ComfyUI.'
+              : 'No image models found. Add checkpoints or FLUX models to ComfyUI.'}
+          </div>
+        ) : (
+          <select value={activeModel} onChange={(e) => handleModelChange(e.target.value)} className={selectClass}>
+            {models.map((m) => {
+              const badge = TYPE_BADGE[m.type]
+              const shortName = m.name.replace(/\.[^.]+$/, '')
+              return (
+                <option key={m.name} value={m.name}>
+                  {shortName} ({badge.label})
+                </option>
+              )
+            })}
+          </select>
+        )}
+        {/* Type badge below dropdown */}
+        {activeModel && models.length > 0 && (
+          <div className="mt-1 flex items-center gap-1">
+            {(() => {
+              const model = models.find(m => m.name === activeModel)
+              if (!model) return null
+              const badge = TYPE_BADGE[model.type]
+              return (
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${badge.color}`}>
+                  {badge.label}
+                </span>
+              )
+            })()}
+          </div>
+        )}
       </div>
 
       {/* Sampler */}

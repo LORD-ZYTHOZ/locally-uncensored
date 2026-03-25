@@ -16,7 +16,7 @@ interface ComfyStatus {
 }
 
 export function CreateView() {
-  const { connected, checkpoints, videoModels, samplerList, videoBackend, error, checkConnection, fetchModels, generate, cancel } = useCreate()
+  const { connected, imageModels, videoModels, samplerList, videoBackend, error, checkConnection, fetchModels, generate, cancel } = useCreate()
   const { mode, setMode } = useCreateStore()
 
   const [status, setStatus] = useState<ComfyStatus | null>(null)
@@ -132,7 +132,7 @@ export function CreateView() {
       {connected === true && (
         <div className="flex items-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-500/10 border-b border-green-200 dark:border-green-500/20 text-green-600 dark:text-green-400 text-sm">
           <CheckCircle size={16} />
-          <span>ComfyUI connected — {checkpoints.length} image model{checkpoints.length !== 1 ? 's' : ''}, {videoModels.length} video model{videoModels.length !== 1 ? 's' : ''}</span>
+          <span>ComfyUI connected — {imageModels.length} image model{imageModels.length !== 1 ? 's' : ''}, {videoModels.length} video model{videoModels.length !== 1 ? 's' : ''}</span>
         </div>
       )}
 
@@ -193,7 +193,7 @@ export function CreateView() {
         {/* Parameter sidebar */}
         <div className="w-64 border-l border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-[#1a1a1a] p-4 overflow-y-auto scrollbar-thin hidden lg:block">
           <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Parameters</h3>
-          <ParamPanel checkpoints={checkpoints} videoModels={videoModels} samplerList={samplerList} />
+          <ParamPanel imageModels={imageModels} videoModels={videoModels} samplerList={samplerList} />
         </div>
       </div>
     </div>
