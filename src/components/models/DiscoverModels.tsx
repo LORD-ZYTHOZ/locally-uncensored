@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Download, RefreshCw, ExternalLink, Search, Info } from 'lucide-react'
-import { fetchAbliteratedModels, type DiscoverModel } from '../../api/discover'
+import { Download, RefreshCw, ExternalLink, Search, Info, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import {
+  fetchAbliteratedModels, getImageModelsDiscover, getVideoModelsDiscover,
+  startModelDownload, getDownloadProgress,
+  type DiscoverModel, type DownloadProgress,
+} from '../../api/discover'
 import { useModels } from '../../hooks/useModels'
 import { GlassCard } from '../ui/GlassCard'
 import { GlowButton } from '../ui/GlowButton'
@@ -13,30 +17,13 @@ interface Props {
   category: ModelCategory
 }
 
-// Curated image model recommendations (ComfyUI checkpoints from CivitAI / HuggingFace)
-const IMAGE_MODELS: DiscoverModel[] = [
-  { name: 'Juggernaut XL V9', description: 'Best photorealistic SDXL checkpoint. Download from CivitAI and place in ComfyUI models/checkpoints/', pulls: 'Top Rated', tags: ['SDXL', '6.5 GB', 'Photorealistic'], updated: 'civitai.com', url: 'https://civitai.com/models/133005/juggernaut-xl' },
-  { name: 'RealVisXL V5', description: 'Photorealistic SDXL model. Great for portraits and landscapes.', pulls: 'Popular', tags: ['SDXL', '6.5 GB', 'Photorealistic'], updated: 'civitai.com', url: 'https://civitai.com/models/139562/realvisxl' },
-  { name: 'Pony Diffusion V6 XL', description: 'Anime/stylized art. Huge LoRA ecosystem on CivitAI.', pulls: 'Top Rated', tags: ['SDXL', '6.5 GB', 'Anime'], updated: 'civitai.com', url: 'https://civitai.com/models/257749/pony-diffusion-v6-xl' },
-  { name: 'FLUX.1 [schnell]', description: 'Fast FLUX variant. 1-4 step generation. Place in models/diffusion_models/', pulls: 'State-of-art', tags: ['FLUX', '12 GB', 'Fast'], updated: 'huggingface.co', url: 'https://huggingface.co/black-forest-labs/FLUX.1-schnell' },
-  { name: 'FLUX.1 [dev]', description: 'High quality FLUX. Needs FP8 quantization for 12GB VRAM.', pulls: 'State-of-art', tags: ['FLUX', '12B', 'Quality'], updated: 'huggingface.co', url: 'https://huggingface.co/black-forest-labs/FLUX.1-dev' },
-  { name: 'epiCRealism XL', description: 'Uncensored photorealistic SDXL checkpoint.', pulls: 'Popular', tags: ['SDXL', '6.5 GB', 'Uncensored'], updated: 'civitai.com', url: 'https://civitai.com/models/277058/epicrealism-xl' },
-]
-
-// Curated video model recommendations
-const VIDEO_MODELS: DiscoverModel[] = [
-  { name: 'Wan 2.1 T2V 1.3B', description: 'Lightweight text-to-video. Place in ComfyUI models/diffusion_models/', pulls: '8-10 GB VRAM', tags: ['Wan', '1.3B', '480p'], updated: 'huggingface.co', url: 'https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B' },
-  { name: 'Wan 2.1 T2V 14B', description: 'High quality text-to-video. Use FP8 quantization for 12GB GPUs.', pulls: '10-12 GB VRAM', tags: ['Wan', '14B', '720p'], updated: 'huggingface.co', url: 'https://huggingface.co/Wan-AI/Wan2.1-T2V-14B' },
-  { name: 'Hunyuan Video', description: 'Tencent video generation model. Compatible with Wan workflow.', pulls: '12+ GB VRAM', tags: ['Hunyuan', '13B', '720p'], updated: 'huggingface.co', url: 'https://huggingface.co/tencent/HunyuanVideo' },
-  { name: 'AnimateDiff v3', description: 'Motion model for SD 1.5 checkpoints. Install via ComfyUI Manager.', pulls: '6-8 GB VRAM', tags: ['AnimateDiff', 'SD1.5', 'MP4'], updated: 'github.com', url: 'https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved' },
-  { name: 'CogVideoX-5B', description: 'Text-to-video model from Tsinghua. Works with ComfyUI.', pulls: '12 GB VRAM', tags: ['CogVideo', '5B', '720p'], updated: 'huggingface.co', url: 'https://huggingface.co/THUDM/CogVideoX-5b' },
-]
-
 export function DiscoverModels({ category }: Props) {
   const [textModels, setTextModels] = useState<DiscoverModel[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
+  const [downloads, setDownloads] = useState<Record<string, DownloadProgress>>({})
   const { pullModel, isPulling, pullProgress, models: installedModels } = useModels()
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Load text models from Ollama search
   useEffect(() => {
@@ -46,31 +33,58 @@ export function DiscoverModels({ category }: Props) {
     }
   }, [category])
 
+  // Poll download progress
+  useEffect(() => {
+    const hasActive = Object.values(downloads).some(d => d.status === 'downloading' || d.status === 'connecting')
+    if (hasActive && !pollRef.current) {
+      pollRef.current = setInterval(async () => {
+        const prog = await getDownloadProgress()
+        setDownloads(prog)
+        const stillActive = Object.values(prog).some(d => d.status === 'downloading' || d.status === 'connecting')
+        if (!stillActive && pollRef.current) {
+          clearInterval(pollRef.current)
+          pollRef.current = null
+        }
+      }, 1000)
+    }
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null } }
+  }, [downloads])
+
   const isText = category === 'text'
   const isImage = category === 'image'
-  const isVideo = category === 'video'
-
-  const allModels = isText ? textModels : isImage ? IMAGE_MODELS : VIDEO_MODELS
+  const allModels = isText ? textModels : isImage ? getImageModelsDiscover() : getVideoModelsDiscover()
 
   const filtered = search
     ? allModels.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()) || m.description.toLowerCase().includes(search.toLowerCase()))
     : allModels
 
-  const isInstalled = (name: string) => {
-    return installedModels.some((m) => m.name.startsWith(name.split(':')[0]))
+  const isInstalled = (name: string) => installedModels.some((m) => m.name.startsWith(name.split(':')[0]))
+
+  const handleDownload = async (model: DiscoverModel) => {
+    if (!model.downloadUrl || !model.filename || !model.subfolder) return
+    const result = await startModelDownload(model.downloadUrl, model.subfolder, model.filename)
+    if (result.status === 'started' || result.status === 'already_exists') {
+      // Start polling
+      const prog = await getDownloadProgress()
+      setDownloads(prog)
+    }
   }
 
-  const progress =
-    pullProgress?.total && pullProgress?.completed
-      ? (pullProgress.completed / pullProgress.total) * 100
-      : 0
+  const getModelDownloadState = (model: DiscoverModel): DownloadProgress | null => {
+    if (!model.filename) return null
+    return downloads[model.filename] ?? null
+  }
+
+  const progress = pullProgress?.total && pullProgress?.completed
+    ? (pullProgress.completed / pullProgress.total) * 100
+    : 0
 
   const title = isText ? 'Uncensored Text Models' : isImage ? 'Image Models (ComfyUI)' : 'Video Models (ComfyUI)'
   const subtitle = isText
     ? 'Abliterated models from the Ollama registry. Click to install.'
     : isImage
-      ? 'Download these checkpoints and place them in your ComfyUI models folder.'
-      : 'Download these models and place them in your ComfyUI models/diffusion_models folder.'
+      ? 'Download checkpoints directly into your ComfyUI models folder.'
+      : 'Download video models directly into your ComfyUI models folder.'
 
   return (
     <div className="space-y-4">
@@ -95,7 +109,28 @@ export function DiscoverModels({ category }: Props) {
         />
       </div>
 
-      {/* Pull progress (text models only) */}
+      {/* Active downloads summary */}
+      {Object.values(downloads).some(d => d.status === 'downloading' || d.status === 'connecting') && (
+        <GlassCard className="p-3 space-y-2">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+            <Loader2 size={14} className="animate-spin" /> Active Downloads
+          </h3>
+          {Object.entries(downloads).filter(([, d]) => d.status === 'downloading' || d.status === 'connecting').map(([id, d]) => (
+            <div key={id} className="space-y-1">
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span className="truncate">{d.filename}</span>
+                <span>
+                  {d.total > 0 ? `${formatBytes(d.progress)} / ${formatBytes(d.total)}` : 'Connecting...'}
+                  {d.speed > 0 && ` · ${formatBytes(d.speed)}/s`}
+                </span>
+              </div>
+              {d.total > 0 && <ProgressBar progress={(d.progress / d.total) * 100} />}
+            </div>
+          ))}
+        </GlassCard>
+      )}
+
+      {/* Ollama pull progress */}
       {isText && isPulling && pullProgress && (
         <GlassCard className="p-3">
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{pullProgress.status}</p>
@@ -110,14 +145,11 @@ export function DiscoverModels({ category }: Props) {
         </GlassCard>
       )}
 
-      {/* Info box for Image/Video */}
       {!isText && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-400 text-xs">
           <Info size={14} className="shrink-0 mt-0.5" />
           <span>
-            {isImage
-              ? 'Image models are not installed through this app. Download them from the links below and place .safetensors files in your ComfyUI models/checkpoints/ or models/diffusion_models/ folder.'
-              : 'Video models are not installed through this app. Download them from the links below and place them in your ComfyUI models/diffusion_models/ folder. Restart the app or click Refresh in the Create tab.'}
+            Models with a download button will be installed directly into ComfyUI. Models without need to be downloaded manually from the link.
           </span>
         </div>
       )}
@@ -126,66 +158,112 @@ export function DiscoverModels({ category }: Props) {
         <div className="text-center py-8 text-gray-500">Loading models...</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {filtered.map((model, i) => (
-            <motion.div
-              key={model.name}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03 }}
-            >
-              <GlassCard className="p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{model.name}</h3>
-                    {model.description && (
-                      <p className="text-xs text-gray-500 mt-0.5">{model.description}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      {model.tags.map((tag) => (
-                        <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400">
-                          {tag}
-                        </span>
-                      ))}
-                      {model.pulls && (
-                        <span className="text-[10px] text-gray-500">{model.pulls}</span>
+          {filtered.map((model, i) => {
+            const dlState = getModelDownloadState(model)
+            const isDownloading = dlState?.status === 'downloading' || dlState?.status === 'connecting'
+            const isComplete = dlState?.status === 'complete'
+            const isError = dlState?.status === 'error'
+            const canDirectDownload = !!model.downloadUrl && !!model.filename && !!model.subfolder
+
+            return (
+              <motion.div
+                key={model.name}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+              >
+                <GlassCard className="p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{model.name}</h3>
+                      {model.description && (
+                        <p className="text-xs text-gray-500 mt-0.5">{model.description}</p>
                       )}
-                      {model.updated && (
-                        <span className="text-[10px] text-gray-400">{model.updated}</span>
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        {model.tags.map((tag) => (
+                          <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400">
+                            {tag}
+                          </span>
+                        ))}
+                        {model.sizeGB && (
+                          <span className="text-[10px] text-gray-400">{model.sizeGB} GB</span>
+                        )}
+                        {model.pulls && (
+                          <span className="text-[10px] text-gray-500">{model.pulls}</span>
+                        )}
+                      </div>
+
+                      {/* Download progress inline */}
+                      {isDownloading && dlState && (
+                        <div className="mt-2 space-y-1">
+                          <ProgressBar progress={dlState.total > 0 ? (dlState.progress / dlState.total) * 100 : 0} />
+                          <div className="flex items-center justify-between text-[10px] text-gray-400">
+                            <span>{dlState.total > 0 ? `${formatBytes(dlState.progress)} / ${formatBytes(dlState.total)}` : 'Connecting...'}</span>
+                            {dlState.speed > 0 && <span>{formatBytes(dlState.speed)}/s</span>}
+                          </div>
+                        </div>
+                      )}
+                      {isError && dlState && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] text-red-500">
+                          <XCircle size={10} /> {dlState.error || 'Download failed'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isText ? (
+                        // Ollama: direct install
+                        isInstalled(model.name) ? (
+                          <span className="text-xs text-green-500 px-2 py-1">Installed</span>
+                        ) : (
+                          <button
+                            onClick={() => pullModel(model.name)}
+                            disabled={isPulling}
+                            className="p-2 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-700 dark:text-white disabled:opacity-30 transition-all"
+                            title="Install model"
+                          >
+                            <Download size={14} />
+                          </button>
+                        )
+                      ) : (
+                        // ComfyUI models
+                        <>
+                          {isComplete ? (
+                            <span className="flex items-center gap-1 text-xs text-green-500 px-2 py-1">
+                              <CheckCircle size={12} /> Installed
+                            </span>
+                          ) : isDownloading ? (
+                            <span className="p-2 text-gray-400">
+                              <Loader2 size={14} className="animate-spin" />
+                            </span>
+                          ) : canDirectDownload ? (
+                            <button
+                              onClick={() => handleDownload(model)}
+                              className="p-2 rounded-lg bg-green-100 dark:bg-green-500/15 hover:bg-green-200 dark:hover:bg-green-500/25 text-green-700 dark:text-green-400 transition-all"
+                              title={`Download ${model.sizeGB ? model.sizeGB + ' GB' : ''} to ComfyUI`}
+                            >
+                              <Download size={14} />
+                            </button>
+                          ) : null}
+                          {model.url && (
+                            <a
+                              href={model.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 transition-all"
+                              title="View on website"
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {isText ? (
-                      // Ollama: direct install
-                      isInstalled(model.name) ? (
-                        <span className="text-xs text-green-500 px-2 py-1">Installed</span>
-                      ) : (
-                        <button
-                          onClick={() => pullModel(model.name)}
-                          disabled={isPulling}
-                          className="p-2 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-700 dark:text-white disabled:opacity-30 transition-all"
-                          title="Install model"
-                        >
-                          <Download size={14} />
-                        </button>
-                      )
-                    ) : (
-                      // Image/Video: link to download
-                      <a
-                        href={model.url || `https://huggingface.co/models?search=${encodeURIComponent(model.name)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-700 dark:text-white transition-all"
-                        title="Download from source"
-                      >
-                        <ExternalLink size={14} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </GlassCard>
-            </motion.div>
-          ))}
+                </GlassCard>
+              </motion.div>
+            )
+          })}
         </div>
       )}
 

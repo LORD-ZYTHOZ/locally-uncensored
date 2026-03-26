@@ -2,8 +2,10 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { spawn, execSync, type ChildProcess } from 'child_process'
-import { existsSync, readdirSync } from 'fs'
-import { resolve, join } from 'path'
+import { existsSync, readdirSync, createWriteStream, mkdirSync } from 'fs'
+import { resolve, join, basename } from 'path'
+import https from 'https'
+import http from 'http'
 import { config } from 'dotenv'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
@@ -166,6 +168,126 @@ function comfyLauncher(): Plugin {
         stopComfy()
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ status: 'stopped' }))
+      })
+
+      // ─── Model Download Manager ───
+      const activeDownloads = new Map<string, { progress: number; total: number; speed: number; filename: string; status: string; error?: string }>()
+
+      function downloadFile(url: string, destPath: string, id: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+          const filename = basename(destPath)
+          activeDownloads.set(id, { progress: 0, total: 0, speed: 0, filename, status: 'connecting' })
+
+          const doRequest = (requestUrl: string, redirectCount = 0) => {
+            if (redirectCount > 5) { reject(new Error('Too many redirects')); return }
+            const proto = requestUrl.startsWith('https') ? https : http
+            proto.get(requestUrl, { headers: { 'User-Agent': 'LocallyUncensored/1.1' } }, (response) => {
+              if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+                doRequest(response.headers.location, redirectCount + 1)
+                return
+              }
+              if (response.statusCode !== 200) {
+                activeDownloads.set(id, { ...activeDownloads.get(id)!, status: 'error', error: `HTTP ${response.statusCode}` })
+                reject(new Error(`HTTP ${response.statusCode}`))
+                return
+              }
+
+              const total = parseInt(response.headers['content-length'] || '0', 10)
+              let downloaded = 0
+              let lastTime = Date.now()
+              let lastBytes = 0
+
+              const dir = resolve(destPath, '..')
+              if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+              const file = createWriteStream(destPath)
+
+              activeDownloads.set(id, { progress: 0, total, speed: 0, filename, status: 'downloading' })
+
+              response.on('data', (chunk: Buffer) => {
+                downloaded += chunk.length
+                const now = Date.now()
+                const dt = (now - lastTime) / 1000
+                if (dt >= 1) {
+                  const speed = (downloaded - lastBytes) / dt
+                  lastTime = now
+                  lastBytes = downloaded
+                  activeDownloads.set(id, { progress: downloaded, total, speed, filename, status: 'downloading' })
+                }
+              })
+
+              response.pipe(file)
+              file.on('finish', () => {
+                file.close()
+                activeDownloads.set(id, { progress: total || downloaded, total: total || downloaded, speed: 0, filename, status: 'complete' })
+                console.log(`[Download] Complete: ${filename}`)
+                resolve()
+              })
+              file.on('error', (err) => {
+                activeDownloads.set(id, { ...activeDownloads.get(id)!, status: 'error', error: err.message })
+                reject(err)
+              })
+            }).on('error', (err) => {
+              activeDownloads.set(id, { ...activeDownloads.get(id)!, status: 'error', error: err.message })
+              reject(err)
+            })
+          }
+          doRequest(url)
+        })
+      }
+
+      // API: Start a model download
+      server.middlewares.use('/local-api/download-model', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { url, subfolder, filename } = JSON.parse(body)
+            if (!url || !subfolder || !filename) {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'Missing url, subfolder, or filename' }))
+              return
+            }
+            const comfyPath = findComfyUI()
+            if (!comfyPath) {
+              res.writeHead(404, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'ComfyUI not found' }))
+              return
+            }
+            const destDir = join(comfyPath, 'models', subfolder)
+            const destPath = join(destDir, filename)
+
+            if (existsSync(destPath)) {
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ status: 'already_exists', id: filename }))
+              return
+            }
+
+            const id = filename
+            console.log(`[Download] Starting: ${filename} → ${destDir}`)
+            downloadFile(url, destPath, id).catch(err => console.error(`[Download] Failed: ${err.message}`))
+
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ status: 'started', id }))
+          } catch (err) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+      })
+
+      // API: Download progress
+      server.middlewares.use('/local-api/download-progress', (_req, res) => {
+        const downloads: Record<string, any> = {}
+        for (const [id, info] of activeDownloads.entries()) {
+          downloads[id] = info
+          // Clean up completed downloads after 30s
+          if (info.status === 'complete' || info.status === 'error') {
+            setTimeout(() => activeDownloads.delete(id), 30000)
+          }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(downloads))
       })
 
       // API: Status + logs
