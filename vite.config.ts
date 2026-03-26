@@ -110,6 +110,21 @@ function comfyLauncher(): Plugin {
   return {
     name: 'comfy-launcher',
     configureServer(server) {
+      // Auto-start Ollama when dev server starts
+      try {
+        execSync('tasklist /FI "IMAGENAME eq ollama.exe" | find /I "ollama.exe"', { stdio: 'ignore' })
+        console.log('[Ollama] Already running')
+      } catch {
+        console.log('[Ollama] Starting...')
+        try {
+          const ollamaProc = spawn('ollama', ['serve'], { detached: true, stdio: 'ignore', shell: true })
+          ollamaProc.unref()
+          console.log('[Ollama] Started')
+        } catch (err) {
+          console.warn('[Ollama] Failed to start:', err)
+        }
+      }
+
       // Auto-start ComfyUI when dev server starts
       setTimeout(async () => {
         try {
