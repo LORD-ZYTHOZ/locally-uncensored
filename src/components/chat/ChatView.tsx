@@ -1,17 +1,20 @@
+import { useState } from 'react'
 import { useChat } from '../../hooks/useChat'
 import { useChatStore } from '../../stores/chatStore'
 import { useModelStore } from '../../stores/modelStore'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
+import { RAGPanel } from './RAGPanel'
 import { PersonaPanel } from '../personas/PersonaPanel'
 import { ModelRecommendation } from '../models/ModelRecommendation'
-import { Cpu } from 'lucide-react'
+import { Cpu, FileText } from 'lucide-react'
 
 export function ChatView() {
   const { sendMessage, stopGeneration, isGenerating } = useChat()
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const activeModel = useModelStore((s) => s.activeModel)
   const models = useModelStore((s) => s.models)
+  const [ragPanelOpen, setRagPanelOpen] = useState(false)
 
   // Check if current conversation has user messages
   const conversation = useChatStore((s) => {
@@ -51,9 +54,26 @@ export function ChatView() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <MessageList isGenerating={isGenerating} />
-      <ChatInput onSend={sendMessage} onStop={stopGeneration} isGenerating={isGenerating} />
+    <div className="h-full flex">
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex items-center justify-end px-3 pt-1">
+          <button
+            onClick={() => setRagPanelOpen(!ragPanelOpen)}
+            className={
+              'p-1.5 rounded-lg transition-colors ' +
+              (ragPanelOpen
+                ? 'bg-green-100 dark:bg-green-500/15 text-green-600 dark:text-green-300'
+                : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400')
+            }
+            title="Document Chat (RAG)"
+          >
+            <FileText size={16} />
+          </button>
+        </div>
+        <MessageList isGenerating={isGenerating} />
+        <ChatInput onSend={sendMessage} onStop={stopGeneration} isGenerating={isGenerating} />
+      </div>
+      {ragPanelOpen && <RAGPanel conversationId={activeConversationId} />}
     </div>
   )
 }

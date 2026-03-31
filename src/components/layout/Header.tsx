@@ -1,4 +1,4 @@
-import { Menu, Settings, Cpu, Sun, Moon, MessageSquare, Film, Layers } from 'lucide-react'
+import { Menu, Settings, Cpu, Sun, Moon, MessageSquare, Film, Layers, Bot } from 'lucide-react'
 import { useUIStore } from '../../stores/uiStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useChatStore } from '../../stores/chatStore'
@@ -59,6 +59,13 @@ export function Header() {
           title="Create Images & Videos"
         >
           <Film size={18} />
+        </button>
+        <button
+          onClick={() => setView('agents')}
+          className={`p-2 rounded-lg transition-colors ${currentView === 'agents' ? 'bg-green-100 dark:bg-green-500/15 text-green-600 dark:text-green-300' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+          title="AI Agents"
+        >
+          <Bot size={18} />
         </button>
         <button
           onClick={() => setView('models')}

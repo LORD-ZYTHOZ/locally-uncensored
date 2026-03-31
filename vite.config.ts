@@ -496,6 +496,211 @@ function comfyLauncher(): Plugin {
           processAlive,
         }))
       })
+
+      // --- Agent Tool Endpoints ---
+
+      // API: Execute Python code
+      server.middlewares.use('/local-api/execute-code', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { code, timeout: timeoutMs } = JSON.parse(body)
+            if (!code) {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'Missing code parameter' }))
+              return
+            }
+
+            const os = require('os')
+            const fs = require('fs')
+            const tmpDir = join(os.tmpdir(), 'agent-exec-' + Date.now())
+            fs.mkdirSync(tmpDir, { recursive: true })
+
+            const limit = timeoutMs || 30000
+            let stdout = ''
+            let stderr = ''
+            let killed = false
+
+            const proc = spawn('python3', ['-c', code], {
+              cwd: tmpDir,
+              stdio: ['ignore', 'pipe', 'pipe'],
+              shell: false,
+            })
+
+            const timer = setTimeout(() => {
+              killed = true
+              try { proc.kill('SIGKILL') } catch { /* already dead */ }
+            }, limit)
+
+            proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString() })
+            proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+
+            proc.on('exit', (exitCode) => {
+              clearTimeout(timer)
+              try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch { /* ignore */ }
+
+              if (killed) {
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ stdout: '', stderr: 'Execution timed out', exitCode: 124 }))
+                return
+              }
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ stdout, stderr, exitCode: exitCode ?? 1 }))
+            })
+
+            proc.on('error', (err: Error) => {
+              clearTimeout(timer)
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ stdout: '', stderr: err.message, exitCode: 1 }))
+            })
+          } catch (err) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+      })
+
+      // API: Read file from agent workspace
+      server.middlewares.use('/local-api/file-read', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { path: filePath } = JSON.parse(body)
+            if (!filePath || filePath.includes('..')) {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'Invalid path' }))
+              return
+            }
+
+            const os = require('os')
+            const fs = require('fs')
+            const workspaceDir = join(os.homedir(), 'agent-workspace')
+            if (!existsSync(workspaceDir)) mkdirSync(workspaceDir, { recursive: true })
+
+            const resolvedPath = join(workspaceDir, filePath)
+            try {
+              const content = fs.readFileSync(resolvedPath, 'utf8')
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ content }))
+            } catch {
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'File not found' }))
+            }
+          } catch (err) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+      })
+
+      // API: Write file to agent workspace
+      server.middlewares.use('/local-api/file-write', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { path: filePath, content } = JSON.parse(body)
+            if (!filePath || filePath.includes('..')) {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'Invalid path' }))
+              return
+            }
+            if (content === undefined) {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'Missing content parameter' }))
+              return
+            }
+
+            const os = require('os')
+            const fs = require('fs')
+            const workspaceDir = join(os.homedir(), 'agent-workspace')
+            const resolvedPath = join(workspaceDir, filePath)
+            const parentDir = resolve(resolvedPath, '..')
+            if (!existsSync(parentDir)) mkdirSync(parentDir, { recursive: true })
+
+            fs.writeFileSync(resolvedPath, content, 'utf8')
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ status: 'ok', path: resolvedPath }))
+          } catch (err) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+      })
+
+      // API: Web search via DuckDuckGo lite
+      server.middlewares.use('/local-api/web-search', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { query, count } = JSON.parse(body)
+            if (!query) {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'Missing query parameter' }))
+              return
+            }
+
+            const maxResults = count || 5
+            const searchUrl = 'https://lite.duckduckgo.com/lite/?q=' + encodeURIComponent(query)
+
+            https.get(searchUrl, { headers: { 'User-Agent': 'LocallyUncensored/1.1' } }, (response) => {
+              let html = ''
+              response.on('data', (chunk: Buffer) => { html += chunk.toString() })
+              response.on('end', () => {
+                try {
+                  const results: { title: string; url: string; snippet: string }[] = []
+
+                  // Parse DuckDuckGo lite HTML results
+                  const linkRegex = /<a[^>]+class="result-link"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi
+                  const snippetRegex = /<td[^>]+class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi
+
+                  const links: { url: string; title: string }[] = []
+                  let linkMatch
+                  while ((linkMatch = linkRegex.exec(html)) !== null) {
+                    const linkUrl = linkMatch[1].replace(/&amp;/g, '&')
+                    const title = linkMatch[2].replace(/<[^>]*>/g, '').trim()
+                    if (linkUrl && title) links.push({ url: linkUrl, title })
+                  }
+
+                  const snippets: string[] = []
+                  let snippetMatch
+                  while ((snippetMatch = snippetRegex.exec(html)) !== null) {
+                    snippets.push(snippetMatch[1].replace(/<[^>]*>/g, '').trim())
+                  }
+
+                  for (let i = 0; i < Math.min(links.length, maxResults); i++) {
+                    results.push({
+                      title: links[i].title,
+                      url: links[i].url,
+                      snippet: snippets[i] || '',
+                    })
+                  }
+
+                  res.writeHead(200, { 'Content-Type': 'application/json' })
+                  res.end(JSON.stringify({ results }))
+                } catch (parseErr) {
+                  res.writeHead(200, { 'Content-Type': 'application/json' })
+                  res.end(JSON.stringify({ results: [], error: 'Failed to parse results' }))
+                }
+              })
+            }).on('error', (err) => {
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ results: [], error: err.message }))
+            })
+          } catch (err) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+      })
+
     },
   }
 }
