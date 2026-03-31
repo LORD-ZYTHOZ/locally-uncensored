@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Send, Square } from 'lucide-react'
+import { VoiceButton } from './VoiceButton'
+import { useVoiceStore } from '../../stores/voiceStore'
 
 interface Props {
   onSend: (content: string) => void
@@ -39,6 +41,17 @@ export function ChatInput({ onSend, onStop, isGenerating }: Props) {
   return (
     <div className="p-3 border-t border-gray-200 dark:border-white/5">
       <div className="flex items-end gap-2.5 glass-card rounded-xl px-3 py-2.5">
+        <VoiceButton
+          onTranscript={(text) => {
+            const autoSend = useVoiceStore.getState().autoSendOnTranscribe
+            if (autoSend) {
+              onSend(text)
+            } else {
+              setInput(text)
+            }
+          }}
+          disabled={isGenerating}
+        />
         <textarea
           ref={textareaRef}
           value={input}

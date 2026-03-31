@@ -6,6 +6,7 @@ export interface Message {
   content: string
   thinking?: string
   timestamp: number
+  sources?: { documentName: string; chunkIndex: number; preview: string }[]
 }
 
 export interface Conversation {

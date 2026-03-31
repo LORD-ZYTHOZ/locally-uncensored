@@ -1,10 +1,12 @@
-import { useRef, useState, useCallback } from 'react'
-import { v4 as uuid } from 'uuid'
-import { chatStream } from '../api/ollama'
-import { parseNDJSONStream } from '../api/stream'
-import { useChatStore } from '../stores/chatStore'
-import { useModelStore } from '../stores/modelStore'
-import { useSettingsStore } from '../stores/settingsStore'
+import { useRef, useState, useCallback } from "react"
+import { v4 as uuid } from "uuid"
+import { chatStream } from "../api/ollama"
+import { parseNDJSONStream } from "../api/stream"
+import { useChatStore } from "../stores/chatStore"
+import { useModelStore } from "../stores/modelStore"
+import { useSettingsStore } from "../stores/settingsStore"
+import { useRAGStore } from "../stores/ragStore"
+import { retrieveContext } from "../api/rag"
 
 interface ChatChunk {
   message?: { content: string }
@@ -14,8 +16,8 @@ interface ChatChunk {
 export function useChat() {
   const [isGenerating, setIsGenerating] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
-  const contentRef = useRef('')
-  const thinkingRef = useRef('')
+  const contentRef = useRef("")
+  const thinkingRef = useRef("")
   const isThinkingRef = useRef(false)
 
   const sendMessage = useCallback(async (content: string) => {
@@ -28,12 +30,12 @@ export function useChat() {
 
     let convId = store.activeConversationId
     if (!convId) {
-      convId = store.createConversation(activeModel, persona?.systemPrompt || '')
+      convId = store.createConversation(activeModel, persona?.systemPrompt || "")
     }
 
     const userMessage = {
       id: uuid(),
-      role: 'user' as const,
+      role: "user" as const,
       content,
       timestamp: Date.now(),
     }
@@ -41,9 +43,9 @@ export function useChat() {
 
     const assistantMessage = {
       id: uuid(),
-      role: 'assistant' as const,
-      content: '',
-      thinking: '',
+      role: "assistant" as const,
+      content: "",
+      thinking: "",
       timestamp: Date.now(),
     }
     useChatStore.getState().addMessage(convId, assistantMessage)
@@ -51,16 +53,47 @@ export function useChat() {
     const conv = useChatStore.getState().conversations.find((c) => c.id === convId)
     if (!conv) return
 
+    // RAG context injection
+    let systemPrompt = conv.systemPrompt
+    const ragState = useRAGStore.getState()
+    const ragEnabled = ragState.ragEnabled[convId] ?? false
+
+    if (ragEnabled) {
+      const chunks = ragState.getConversationChunks(convId)
+      if (chunks.length > 0) {
+        try {
+          const { context: ragContext, scoredChunks } = await retrieveContext(
+            content,
+            chunks,
+            ragState.embeddingModel
+          )
+
+          // Store scored chunks for display in RAGPanel
+          ragState.setLastRetrievedChunks(scoredChunks)
+
+          if (ragContext.chunks.length > 0) {
+            const contextBlock = ragContext.chunks
+              .map((c, i) => `[Source ${i + 1}]\n${c.content}`)
+              .join("\n\n")
+            const ragPrefix = `Use the following document context to help answer the user's question. If the context is not relevant, ignore it and answer normally.\n\n---\n${contextBlock}\n---\n\n`
+            systemPrompt = ragPrefix + (systemPrompt || "")
+          }
+        } catch (err) {
+          console.error("RAG retrieval failed, continuing without context:", err)
+        }
+      }
+    }
+
     const messages = [
-      ...(conv.systemPrompt ? [{ role: 'system', content: conv.systemPrompt }] : []),
+      ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
       ...conv.messages.map((m) => ({ role: m.role, content: m.content })),
     ]
 
     const abort = new AbortController()
     abortRef.current = abort
     setIsGenerating(true)
-    contentRef.current = ''
-    thinkingRef.current = ''
+    contentRef.current = ""
+    thinkingRef.current = ""
     isThinkingRef.current = false
 
     try {
@@ -81,20 +114,16 @@ export function useChat() {
         if (chunk.message?.content) {
           const text = chunk.message.content
 
-          // Parse <think> tags character by character as they stream in
           for (const char of text) {
-            // Check if we're entering a <think> block
             if (!isThinkingRef.current) {
               contentRef.current += char
-              // Check if content ends with <think>
-              if (contentRef.current.endsWith('<think>')) {
+              if (contentRef.current.endsWith("<think>")) {
                 contentRef.current = contentRef.current.slice(0, -7)
                 isThinkingRef.current = true
               }
             } else {
               thinkingRef.current += char
-              // Check if thinking ends with </think>
-              if (thinkingRef.current.endsWith('</think>')) {
+              if (thinkingRef.current.endsWith("</think>")) {
                 thinkingRef.current = thinkingRef.current.slice(0, -8)
                 isThinkingRef.current = false
               }
@@ -115,18 +144,22 @@ export function useChat() {
           }
         }
         if (chunk.done) {
-          useChatStore.getState().updateMessageContent(convId!, assistantMessage.id, contentRef.current)
+          useChatStore
+            .getState()
+            .updateMessageContent(convId!, assistantMessage.id, contentRef.current)
           if (thinkingRef.current) {
-            useChatStore.getState().updateMessageThinking(convId!, assistantMessage.id, thinkingRef.current)
+            useChatStore
+              .getState()
+              .updateMessageThinking(convId!, assistantMessage.id, thinkingRef.current)
           }
         }
       }
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
+      if ((err as Error).name !== "AbortError") {
         useChatStore.getState().updateMessageContent(
           convId!,
           assistantMessage.id,
-          contentRef.current + '\n\n⚠️ Error: Connection failed'
+          contentRef.current + "\n\n⚠️ Error: Connection failed"
         )
       }
     } finally {
