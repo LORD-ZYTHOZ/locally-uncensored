@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Image, Video, WifiOff, Loader2, CheckCircle, AlertTriangle, RefreshCw, Settings, FolderOpen, ExternalLink, Copy } from 'lucide-react'
+import { backendCall } from '../../api/backend'
 import { useCreate } from '../../hooks/useCreate'
 import { useCreateStore } from '../../stores/createStore'
 import { PromptInput } from './PromptInput'
@@ -39,8 +40,7 @@ export function CreateView() {
 
   const pollStatus = useCallback(async () => {
     try {
-      const res = await fetch('/local-api/comfyui-status', { signal: AbortSignal.timeout(3000) })
-      const data: ComfyStatus = await res.json()
+      const data: ComfyStatus = await backendCall('comfyui_status')
       setStatus(data)
       if (data.logs?.length > 0) setStartupLogs(data.logs)
 
@@ -86,7 +86,7 @@ export function CreateView() {
 
   const retryConnect = async () => {
     setRetrying(true)
-    try { await fetch('/local-api/start-comfyui') } catch { /* ignore */ }
+    try { await backendCall('start_comfyui') } catch { /* ignore */ }
     // Single poll attempt
     setTimeout(async () => {
       await pollStatus()
@@ -118,12 +118,11 @@ export function CreateView() {
                     setInstallError('')
                     setInstallLogs([])
                     try {
-                      await fetch('/local-api/install-comfyui', { method: 'POST' })
+                      await backendCall('install_comfyui')
                       // Poll install progress
                       installPollRef.current = setInterval(async () => {
                         try {
-                          const res = await fetch('/local-api/install-comfyui')
-                          const data = await res.json()
+                          const data = await backendCall('install_comfyui_status')
                           setInstallLogs(data.logs || [])
                           if (data.status === 'complete') {
                             if (installPollRef.current) clearInterval(installPollRef.current)
@@ -169,12 +168,7 @@ export function CreateView() {
                       setPathSaving(true)
                       setPathError('')
                       try {
-                        const res = await fetch('/local-api/set-comfyui-path', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ path: comfyPathInput.trim() }),
-                        })
-                        const data = await res.json()
+                        const data = await backendCall('set_comfyui_path', { path: comfyPathInput.trim() })
                         if (data.status === 'ok') {
                           setTimeout(() => pollStatus(), 2000)
                         } else {

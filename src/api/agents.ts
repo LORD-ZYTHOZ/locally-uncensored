@@ -1,4 +1,5 @@
 import type { Tool, ToolName, ToolCall, AgentLogEntry } from "../types/agents";
+import { backendCall, ollamaUrl } from "./backend";
 
 export const AGENT_TOOLS: Tool[] = [
   {
@@ -260,52 +261,28 @@ export async function executeTool(
 ): Promise<string> {
   switch (tool) {
     case "code_execute": {
-      const res = await fetch("/local-api/execute-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: args.code,
-          language: args.language || "python",
-        }),
+      const data = await backendCall("execute_code", {
+        code: args.code,
+        timeout: 30000,
       });
-      if (!res.ok) throw new Error(`code_execute failed: ${res.statusText}`);
-      const data = await res.json();
       return `Exit code: ${data.exitCode ?? 0}\nStdout:\n${data.stdout || ""}\nStderr:\n${data.stderr || ""}`;
     }
 
     case "file_read": {
-      const res = await fetch("/local-api/file-read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: args.path }),
-      });
-      if (!res.ok) throw new Error(`file_read failed: ${res.statusText}`);
-      const data = await res.json();
+      const data = await backendCall("file_read", { path: args.path });
       return data.content || "";
     }
 
     case "file_write": {
-      const res = await fetch("/local-api/file-write", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: args.path, content: args.content }),
-      });
-      if (!res.ok) throw new Error(`file_write failed: ${res.statusText}`);
-      const data = await res.json();
+      const data = await backendCall("file_write", { path: args.path, content: args.content });
       return data.message || "File written successfully";
     }
 
     case "web_search": {
-      const res = await fetch("/local-api/web-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: args.query,
-          maxResults: args.maxResults || 5,
-        }),
+      const data = await backendCall("web_search", {
+        query: args.query,
+        count: args.maxResults || 5,
       });
-      if (!res.ok) throw new Error(`web_search failed: ${res.statusText}`);
-      const data = await res.json();
       if (Array.isArray(data.results)) {
         return data.results
           .map(
@@ -330,7 +307,7 @@ export async function chatNonStreaming(
   model: string,
   messages: { role: string; content: string }[]
 ): Promise<string> {
-  const res = await fetch("/api/chat", {
+  const res = await fetch(ollamaUrl("/chat"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

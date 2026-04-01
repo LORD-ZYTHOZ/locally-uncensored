@@ -1,5 +1,6 @@
 import { v4 as uuid } from "uuid"
 import type { DocumentMeta, TextChunk, RAGContext, VectorSearchResult } from "../types/rag"
+import { ollamaUrl } from "./backend"
 
 export async function extractText(file: File): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase()
@@ -56,7 +57,7 @@ export async function generateEmbeddings(
   texts: string[],
   model = "nomic-embed-text"
 ): Promise<number[][]> {
-  const res = await fetch("/api/embed", {
+  const res = await fetch(ollamaUrl("/embed"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, input: texts }),

@@ -6,6 +6,9 @@
   "permissions": [
     "core:default",
     "core:window:default",
-    "core:webview:default"
+    "core:webview:default",
+    "shell:allow-spawn",
+    "shell:allow-stdin-write",
+    "shell:allow-kill"
   ]
 }

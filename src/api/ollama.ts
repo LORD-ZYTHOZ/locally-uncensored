@@ -1,14 +1,15 @@
 import type { OllamaModel } from "../types/models"
+import { ollamaUrl } from "./backend"
 
 export async function listModels(): Promise<OllamaModel[]> {
-  const res = await fetch("/api/tags")
+  const res = await fetch(ollamaUrl("/tags"))
   if (!res.ok) throw new Error("Failed to fetch models")
   const data = await res.json()
   return (data.models || []).map((m: any) => ({ ...m, type: "text" as const }))
 }
 
 export async function showModel(name: string) {
-  const res = await fetch("/api/show", {
+  const res = await fetch(ollamaUrl("/show"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
@@ -36,7 +37,7 @@ export async function chatStream(
   options: { temperature?: number; top_p?: number; top_k?: number; num_predict?: number } = {},
   signal?: AbortSignal
 ): Promise<Response> {
-  const res = await fetch("/api/chat", {
+  const res = await fetch(ollamaUrl("/chat"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, messages, options, stream: true }),
@@ -47,7 +48,7 @@ export async function chatStream(
 }
 
 export async function pullModel(name: string, signal?: AbortSignal): Promise<Response> {
-  const res = await fetch("/api/pull", {
+  const res = await fetch(ollamaUrl("/pull"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, stream: true }),
@@ -58,7 +59,7 @@ export async function pullModel(name: string, signal?: AbortSignal): Promise<Res
 }
 
 export async function deleteModel(name: string): Promise<void> {
-  const res = await fetch("/api/delete", {
+  const res = await fetch(ollamaUrl("/delete"), {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
@@ -68,7 +69,7 @@ export async function deleteModel(name: string): Promise<void> {
 
 export async function checkConnection(): Promise<boolean> {
   try {
-    await fetch("/api/tags")
+    await fetch(ollamaUrl("/tags"))
     return true
   } catch {
     return false

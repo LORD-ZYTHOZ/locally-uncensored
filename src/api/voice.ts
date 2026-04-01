@@ -1,3 +1,5 @@
+import { backendCall, isTauri } from "./backend";
+
 /**
  * Voice API — 100% local
  * STT: Local Whisper (faster-whisper or openai-whisper) via /local-api/transcribe
@@ -139,9 +141,13 @@ export function stopSpeaking(): void {
 export async function checkWhisperAvailable(): Promise<{
   available: boolean;
   backend: string | null;
+  loading?: boolean;
   error?: string;
 }> {
   try {
+    if (isTauri()) {
+      return await backendCall("whisper_status");
+    }
     const res = await fetch("/local-api/transcribe-status");
     return res.json();
   } catch {
@@ -150,6 +156,23 @@ export async function checkWhisperAvailable(): Promise<{
 }
 
 export async function transcribeAudio(audioBlob: Blob): Promise<string> {
+  if (isTauri()) {
+    // Convert blob to base64 for Tauri invoke
+    const buffer = await audioBlob.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const audioBase64 = btoa(binary);
+    const data = await backendCall("transcribe", {
+      audio_base64: audioBase64,
+      content_type: audioBlob.type || "audio/webm",
+    });
+    if (data.error) throw new Error(data.error);
+    return data.transcript || "";
+  }
+
   const res = await fetch("/local-api/transcribe", {
     method: "POST",
     headers: { "Content-Type": audioBlob.type || "audio/webm" },

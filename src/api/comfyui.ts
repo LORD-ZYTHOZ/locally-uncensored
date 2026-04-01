@@ -1,3 +1,5 @@
+import { comfyuiUrl } from "./backend"
+
 // ─── Types ───
 
 export interface GenerateParams {
@@ -59,7 +61,7 @@ function isVideoModelType(type: ModelType): boolean {
 
 export async function checkComfyConnection(): Promise<boolean> {
   try {
-    const res = await fetch('/comfyui/system_stats', { signal: AbortSignal.timeout(5000) })
+    const res = await fetch(comfyuiUrl('/system_stats'), { signal: AbortSignal.timeout(5000) })
     return res.ok
   } catch {
     return false
@@ -69,7 +71,7 @@ export async function checkComfyConnection(): Promise<boolean> {
 // Check if a specific node exists in ComfyUI (lightweight, single node check)
 async function nodeExists(nodeName: string): Promise<boolean> {
   try {
-    const res = await fetch(`/comfyui/object_info/${nodeName}`, { signal: AbortSignal.timeout(3000) })
+    const res = await fetch(comfyuiUrl(`/object_info/${nodeName}`), { signal: AbortSignal.timeout(3000) })
     if (!res.ok) return false
     const data = await res.json()
     return !!(data && data[nodeName])
@@ -80,7 +82,7 @@ async function nodeExists(nodeName: string): Promise<boolean> {
 
 export async function getCheckpoints(): Promise<string[]> {
   try {
-    const res = await fetch('/comfyui/object_info/CheckpointLoaderSimple')
+    const res = await fetch(comfyuiUrl('/object_info/CheckpointLoaderSimple'))
     if (!res.ok) return []
     const data = await res.json()
     return data?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ?? []
@@ -92,7 +94,7 @@ export async function getCheckpoints(): Promise<string[]> {
 
 export async function getDiffusionModels(): Promise<string[]> {
   try {
-    const res = await fetch('/comfyui/object_info/UNETLoader')
+    const res = await fetch(comfyuiUrl('/object_info/UNETLoader'))
     if (!res.ok) return []
     const data = await res.json()
     return data?.UNETLoader?.input?.required?.unet_name?.[0] ?? []
@@ -104,7 +106,7 @@ export async function getDiffusionModels(): Promise<string[]> {
 
 export async function getVAEModels(): Promise<string[]> {
   try {
-    const res = await fetch('/comfyui/object_info/VAELoader')
+    const res = await fetch(comfyuiUrl('/object_info/VAELoader'))
     if (!res.ok) return []
     const data = await res.json()
     return data?.VAELoader?.input?.required?.vae_name?.[0] ?? []
@@ -116,7 +118,7 @@ export async function getVAEModels(): Promise<string[]> {
 
 export async function getCLIPModels(): Promise<string[]> {
   try {
-    const res = await fetch('/comfyui/object_info/CLIPLoader')
+    const res = await fetch(comfyuiUrl('/object_info/CLIPLoader'))
     if (!res.ok) return []
     const data = await res.json()
     return data?.CLIPLoader?.input?.required?.clip_name?.[0] ?? []
@@ -128,7 +130,7 @@ export async function getCLIPModels(): Promise<string[]> {
 
 export async function getSamplers(): Promise<string[]> {
   try {
-    const res = await fetch('/comfyui/object_info/KSampler')
+    const res = await fetch(comfyuiUrl('/object_info/KSampler'))
     if (!res.ok) throw new Error('Failed')
     const data = await res.json()
     return data?.KSampler?.input?.required?.sampler_name?.[0] ?? []
@@ -139,7 +141,7 @@ export async function getSamplers(): Promise<string[]> {
 
 export async function getSchedulers(): Promise<string[]> {
   try {
-    const res = await fetch('/comfyui/object_info/KSampler')
+    const res = await fetch(comfyuiUrl('/object_info/KSampler'))
     if (!res.ok) throw new Error('Failed')
     const data = await res.json()
     return data?.KSampler?.input?.required?.scheduler?.[0] ?? []
@@ -150,7 +152,7 @@ export async function getSchedulers(): Promise<string[]> {
 
 export async function getAnimateDiffModels(): Promise<string[]> {
   try {
-    const res = await fetch('/comfyui/object_info/ADE_LoadAnimateDiffModel')
+    const res = await fetch(comfyuiUrl('/object_info/ADE_LoadAnimateDiffModel'))
     if (!res.ok) return []
     const data = await res.json()
     return data?.ADE_LoadAnimateDiffModel?.input?.required?.model_name?.[0] ?? []
@@ -277,7 +279,7 @@ async function findAnimateDiffModel(): Promise<string> {
 // ─── Workflow Submission ───
 
 export async function submitWorkflow(workflow: Record<string, any>): Promise<string> {
-  const res = await fetch('/comfyui/prompt', {
+  const res = await fetch(comfyuiUrl('/prompt'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: workflow }),
@@ -292,13 +294,13 @@ export async function submitWorkflow(workflow: Record<string, any>): Promise<str
 
 export async function cancelGeneration(): Promise<void> {
   try {
-    await fetch('/comfyui/interrupt', { method: 'POST' })
+    await fetch(comfyuiUrl('/interrupt'), { method: 'POST' })
   } catch { /* best effort */ }
 }
 
 export async function getHistory(promptId: string): Promise<any> {
   try {
-    const res = await fetch(`/comfyui/history/${promptId}`)
+    const res = await fetch(comfyuiUrl(`/history/${promptId}`))
     if (!res.ok) return null
     const data = await res.json()
     return data[promptId] ?? null
@@ -308,7 +310,7 @@ export async function getHistory(promptId: string): Promise<any> {
 }
 
 export function getImageUrl(filename: string, subfolder: string = '', type: string = 'output'): string {
-  return `/comfyui/view?filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent(subfolder)}&type=${type}&t=${Date.now()}`
+  return comfyuiUrl(`/view?filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent(subfolder)}&type=${type}&t=${Date.now()}`)
 }
 
 // ─── Validate params ───

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { backendCall } from '../../api/backend'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Bot, Play, Square, Trash2, Clock, Download, Loader2, CircleCheck, CircleAlert } from 'lucide-react'
 import { GlowButton } from '../ui/GlowButton'
@@ -45,8 +46,7 @@ export function AgentView() {
 
   const checkSearxngStatus = async () => {
     try {
-      const res = await fetch('/local-api/install-searxng')
-      const data = await res.json()
+      const data = await backendCall('searxng_status')
       setSearxngStatus({ installed: data.installed, running: data.running, dockerAvailable: data.dockerAvailable })
     } catch {
       setSearxngStatus({ installed: false, running: false, dockerAvailable: false })
@@ -57,8 +57,7 @@ export function AgentView() {
     setSearxngInstalling(true)
     setSearxngMsg('Starting...')
     try {
-      const res = await fetch('/local-api/install-searxng', { method: 'POST' })
-      const data = await res.json()
+      const data = await backendCall('install_searxng')
       if (data.error) {
         setSearxngMsg(data.error)
         setSearxngInstalling(false)
@@ -72,8 +71,7 @@ export function AgentView() {
       }
       const poll = setInterval(async () => {
         try {
-          const statusRes = await fetch('/local-api/install-searxng')
-          const statusData = await statusRes.json()
+          const statusData = await backendCall('searxng_status')
           const lastLog = statusData.logs?.length ? statusData.logs[statusData.logs.length - 1] : ''
           setSearxngMsg(lastLog || statusData.status)
           if (statusData.status === 'complete') {

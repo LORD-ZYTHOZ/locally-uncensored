@@ -1,3 +1,5 @@
+import { backendCall } from "./backend"
+
 export interface DiscoverModel {
   name: string
   description: string
@@ -24,18 +26,12 @@ export interface DownloadProgress {
 // ─── Download API ───
 
 export async function startModelDownload(url: string, subfolder: string, filename: string): Promise<{ status: string; id: string; error?: string }> {
-  const res = await fetch('/local-api/download-model', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, subfolder, filename }),
-  })
-  return res.json()
+  return backendCall("download_model", { url, subfolder, filename })
 }
 
 export async function getDownloadProgress(): Promise<Record<string, DownloadProgress>> {
   try {
-    const res = await fetch('/local-api/download-progress')
-    return res.json()
+    return await backendCall("download_progress")
   } catch {
     return {}
   }
@@ -45,6 +41,12 @@ export async function getDownloadProgress(): Promise<Record<string, DownloadProg
 
 export async function fetchAbliteratedModels(): Promise<DiscoverModel[]> {
   try {
+    // In Tauri production mode, we can't proxy to ollama.com — fall back to curated list
+    const { isTauri } = await import("./backend")
+    if (isTauri()) {
+      return getCuratedTextModels()
+    }
+
     const res = await fetch('/ollama-search?q=abliterated&p=1')
     const html = await res.text()
 
