@@ -98,7 +98,9 @@ export function categorizeNodes(allNodes: Record<string, NodeMetadata>): Categor
     // Latent init
     EmptyLatentImage: 'latentInit',
     EmptySD3LatentImage: 'latentInit',
+    EmptyFlux2LatentImage: 'latentInit',
     EmptyHunyuanLatentVideo: 'latentInit',
+    EmptyLTXVLatentVideo: 'latentInit',
     // Text encoding
     CLIPTextEncode: 'textEncoders',
     CLIPTextEncodeSDXL: 'textEncoders',

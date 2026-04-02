@@ -46,6 +46,7 @@ const TYPE_BADGE: Record<ModelType, { label: string; color: string }> = {
   sd15: { label: 'SD 1.5', color: 'bg-green-500/15 text-green-300' },
   wan: { label: 'Wan', color: 'bg-orange-500/15 text-orange-300' },
   hunyuan: { label: 'Hunyuan', color: 'bg-red-500/15 text-red-300' },
+  ltx: { label: 'LTX', color: 'bg-cyan-500/15 text-cyan-300' },
   unknown: { label: 'Model', color: 'bg-white/10 text-gray-400' },
 }
 

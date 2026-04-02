@@ -109,6 +109,13 @@ export const COMPONENT_REGISTRY: Record<ModelType, ComponentRequirements> = {
     needsSeparateVAE: true,
     needsSeparateCLIP: true,
   },
+  ltx: {
+    loader: 'UNETLoader',
+    vae: { patterns: ['ltx'], downloadName: 'ltx_vae.safetensors', downloadUrl: '', subfolder: 'vae' },
+    clip: { patterns: ['gemma'], downloadName: 'gemma_3_12B_it_fp8_scaled.safetensors', downloadUrl: 'https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors', subfolder: 'text_encoders' },
+    needsSeparateVAE: false, // LTX has VAE built into the model pipeline
+    needsSeparateCLIP: true,
+  },
   unknown: {
     loader: 'CheckpointLoaderSimple',
     needsSeparateVAE: false,

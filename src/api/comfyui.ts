@@ -27,7 +27,7 @@ export interface ComfyUIOutput {
   type: string
 }
 
-export type ModelType = 'flux' | 'flux2' | 'sdxl' | 'sd15' | 'wan' | 'hunyuan' | 'unknown'
+export type ModelType = 'flux' | 'flux2' | 'sdxl' | 'sd15' | 'wan' | 'hunyuan' | 'ltx' | 'unknown'
 export type VideoBackend = 'wan' | 'animatediff' | 'none'
 
 export interface ClassifiedModel {
@@ -63,6 +63,7 @@ export function classifyModel(name: string): ModelType {
   // Video models — most specific first
   if (lower.includes('wan')) return 'wan'
   if (lower.includes('hunyuan')) return 'hunyuan'
+  if (lower.includes('ltx')) return 'ltx'
 
   // FLUX variants
   if (lower.includes('flux-2') || lower.includes('flux2')) return 'flux2'
@@ -91,7 +92,7 @@ function isImageModelType(type: ModelType): boolean {
 }
 
 function isVideoModelType(type: ModelType): boolean {
-  return type === 'wan' || type === 'hunyuan'
+  return type === 'wan' || type === 'hunyuan' || type === 'ltx'
 }
 
 // ─── Connection & Info ───
@@ -310,6 +311,13 @@ export async function findMatchingVAE(modelType: ModelType): Promise<string> {
     if (match) return match
     throw new Error(`No Wan VAE found. Download "wan_2.1_vae.safetensors" from the Model Manager.`)
   }
+  if (modelType === 'ltx') {
+    // LTX Video uses its own VAE embedded in the model — any available VAE as fallback
+    const match = vaes.find(v => lower(v).includes('ltx'))
+    if (match) return match
+    // LTX models often have built-in VAE, return first available
+    return vaes[0]
+  }
   // SDXL/SD1.5 checkpoints include VAE — any VAE works as fallback
   return vaes[0]
 }
@@ -345,6 +353,12 @@ export async function findMatchingCLIP(modelType: ModelType): Promise<string> {
       || clips.find(c => lower(c).includes('t5'))
     if (match) return match
     throw new Error(`No Wan text encoder found. Download "umt5_xxl_fp8_e4m3fn_scaled.safetensors" from the Model Manager.`)
+  }
+  if (modelType === 'ltx') {
+    // LTX Video 2.x uses Gemma 3 as text encoder
+    const match = clips.find(c => lower(c).includes('gemma'))
+    if (match) return match
+    throw new Error(`No LTX Video text encoder found. Download "gemma_3_12B_it_fp8_scaled.safetensors" from the Model Manager.`)
   }
   // SDXL/SD1.5 checkpoints include CLIP — any works
   return clips[0]

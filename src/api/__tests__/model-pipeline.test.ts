@@ -48,6 +48,11 @@ describe('classifyModel', () => {
     // HunyuanVideo
     ['hunyuanvideo1.5_480p_t2v_fp8.safetensors', 'hunyuan'],
     ['hunyuanvideo_t2v.safetensors', 'hunyuan'],
+
+    // LTX Video
+    ['ltx-2.3-22b-distilled-fp8.safetensors', 'ltx'],
+    ['ltxv_0.9.7_13b_dev_fp8.safetensors', 'ltx'],
+    ['LTX-Video-model.safetensors', 'ltx'],
   ]
 
   for (const [filename, expected] of cases) {
@@ -77,7 +82,7 @@ describe('classifyModel', () => {
 
 describe('MODEL_TYPE_DEFAULTS', () => {
   it('every ModelType has defaults', () => {
-    const allTypes: ModelType[] = ['sd15', 'sdxl', 'flux', 'flux2', 'wan', 'hunyuan', 'unknown']
+    const allTypes: ModelType[] = ['sd15', 'sdxl', 'flux', 'flux2', 'wan', 'hunyuan', 'ltx', 'unknown']
     for (const type of allTypes) {
       const defaults = MODEL_TYPE_DEFAULTS[type]
       expect(defaults, `missing defaults for ${type}`).toBeDefined()
@@ -110,6 +115,8 @@ describe('MODEL_TYPE_DEFAULTS', () => {
     expect(MODEL_TYPE_DEFAULTS.wan.fps).toBeGreaterThan(0)
     expect(MODEL_TYPE_DEFAULTS.hunyuan.frames).toBeGreaterThan(0)
     expect(MODEL_TYPE_DEFAULTS.hunyuan.fps).toBeGreaterThan(0)
+    expect(MODEL_TYPE_DEFAULTS.ltx.frames).toBeGreaterThan(0)
+    expect(MODEL_TYPE_DEFAULTS.ltx.fps).toBeGreaterThan(0)
   })
 })
 
@@ -123,7 +130,7 @@ describe('COMPONENT_REGISTRY', () => {
     expect(COMPONENT_REGISTRY.sdxl.needsSeparateCLIP).toBe(false)
   })
 
-  it('UNET models (flux, flux2, wan, hunyuan) need separate VAE/CLIP', () => {
+  it('UNET models need separate CLIP (and most need VAE)', () => {
     for (const type of ['flux', 'flux2', 'wan', 'hunyuan'] as ModelType[]) {
       const reg = COMPONENT_REGISTRY[type]
       expect(reg.needsSeparateVAE, `${type} needs VAE`).toBe(true)
@@ -133,6 +140,11 @@ describe('COMPONENT_REGISTRY', () => {
       expect(reg.vae!.downloadUrl, `${type} VAE has URL`).toContain('https://')
       expect(reg.clip!.downloadUrl, `${type} CLIP has URL`).toContain('https://')
     }
+    // LTX needs CLIP but NOT separate VAE
+    expect(COMPONENT_REGISTRY.ltx.needsSeparateCLIP).toBe(true)
+    expect(COMPONENT_REGISTRY.ltx.needsSeparateVAE).toBe(false)
+    expect(COMPONENT_REGISTRY.ltx.clip).toBeDefined()
+    expect(COMPONENT_REGISTRY.ltx.clip!.downloadUrl).toContain('https://')
   })
 
   it('FLUX 1 uses T5 encoder', () => {
@@ -151,6 +163,10 @@ describe('COMPONENT_REGISTRY', () => {
 
   it('Hunyuan uses Qwen encoder', () => {
     expect(COMPONENT_REGISTRY.hunyuan.clip!.patterns).toContain('qwen')
+  })
+
+  it('LTX uses Gemma encoder', () => {
+    expect(COMPONENT_REGISTRY.ltx.clip!.patterns).toContain('gemma')
   })
 
   it('every downloadUrl is HTTPS', () => {
@@ -176,6 +192,7 @@ describe('Encoder-Type consistency', () => {
     flux2:   { loaderType: 'flux2', encoderPatterns: ['qwen', 'mistral'] },
     wan:     { loaderType: 'wan',   encoderPatterns: ['umt5', 'wan', 't5'] },
     hunyuan: { loaderType: 'wan',   encoderPatterns: ['qwen', 'llava', 'umt5'] },
+    ltx:     { loaderType: 'ltxv',  encoderPatterns: ['gemma'] },
   }
 
   for (const [type, expected] of Object.entries(EXPECTED_CLIP_TYPES)) {

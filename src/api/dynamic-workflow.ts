@@ -12,8 +12,10 @@ import {
 // ─── Strategy Detection ───
 
 export type WorkflowStrategy =
-  | 'unet_flux'       // FLUX/FLUX2: UNETLoader + CLIPLoader + VAELoader + EmptySD3LatentImage
+  | 'unet_flux'       // FLUX 1: UNETLoader + CLIPLoader + VAELoader + EmptySD3LatentImage
+  | 'unet_flux2'      // FLUX 2: UNETLoader + CLIPLoader + VAELoader + EmptyFlux2LatentImage
   | 'unet_video'      // Wan/Hunyuan: UNETLoader + CLIPLoader + VAELoader + EmptyHunyuanLatentVideo
+  | 'unet_ltx'        // LTX Video: UNETLoader + CLIPLoader + EmptyLTXVLatentVideo
   | 'checkpoint'      // SDXL/SD1.5: CheckpointLoaderSimple + EmptyLatentImage
   | 'animatediff'     // AnimateDiff: CheckpointLoaderSimple + ADE_* nodes
   | 'unavailable'
@@ -35,12 +37,28 @@ function determineStrategy(
   const hasVAELoader = nodes.loaders.includes('VAELoader')
   const hasAnimateDiff = nodes.motion.includes('ADE_LoadAnimateDiffModel')
 
-  // FLUX / FLUX2 → always UNET-based
-  if (modelType === 'flux' || modelType === 'flux2') {
+  // FLUX 2 → UNET + Flux2LatentImage
+  if (modelType === 'flux2') {
     if (hasUNET && hasCLIPLoader && hasVAELoader) {
-      return { strategy: 'unet_flux', reason: `${modelType} model → UNETLoader pipeline` }
+      return { strategy: 'unet_flux2', reason: 'FLUX 2 model → UNETLoader + EmptyFlux2LatentImage' }
+    }
+    return { strategy: 'unavailable', reason: 'FLUX 2 requires UNETLoader + CLIPLoader + VAELoader nodes' }
+  }
+
+  // FLUX 1 → UNET + SD3LatentImage
+  if (modelType === 'flux') {
+    if (hasUNET && hasCLIPLoader && hasVAELoader) {
+      return { strategy: 'unet_flux', reason: 'FLUX model → UNETLoader pipeline' }
     }
     return { strategy: 'unavailable', reason: 'FLUX requires UNETLoader + CLIPLoader + VAELoader nodes' }
+  }
+
+  // LTX Video → UNET + LTXVLatentVideo (no separate VAE needed)
+  if (modelType === 'ltx') {
+    if (hasUNET && hasCLIPLoader) {
+      return { strategy: 'unet_ltx', reason: 'LTX Video → UNETLoader + EmptyLTXVLatentVideo' }
+    }
+    return { strategy: 'unavailable', reason: 'LTX Video requires UNETLoader + CLIPLoader nodes' }
   }
 
   // Wan / Hunyuan → UNET-based with video latent
@@ -117,14 +135,14 @@ export async function buildDynamicWorkflow(
     vaeOutputSlot = 2
     samplerModelId = modelNodeId
 
-  } else if (strategy === 'unet_flux' || strategy === 'unet_video') {
+  } else if (strategy === 'unet_flux' || strategy === 'unet_flux2' || strategy === 'unet_video' || strategy === 'unet_ltx') {
     // Separate loaders
     const unetId = String(n++)
     const clipId = String(n++)
-    const vaeId = String(n++)
 
     const clipType = type === 'flux2' ? 'flux2'
       : type === 'flux' ? 'flux'
+      : type === 'ltx' ? 'ltxv'
       : (type === 'wan' || type === 'hunyuan') ? 'wan'
       : 'flux'
 
@@ -140,9 +158,18 @@ export async function buildDynamicWorkflow(
       class_type: 'CLIPLoader',
       inputs: { clip_name: clip, type: clipType, device: 'default' },
     }
-    workflow[vaeId] = {
-      class_type: 'VAELoader',
-      inputs: { vae_name: vae },
+
+    // LTX doesn't need a separate VAE loader — VAE is built into the pipeline
+    const needsVAELoader = strategy !== 'unet_ltx'
+    let vaeId: string
+    if (needsVAELoader) {
+      vaeId = String(n++)
+      workflow[vaeId] = {
+        class_type: 'VAELoader',
+        inputs: { vae_name: vae },
+      }
+    } else {
+      vaeId = unetId // fallback reference (won't be used for LTX)
     }
 
     modelNodeId = unetId
@@ -227,12 +254,26 @@ export async function buildDynamicWorkflow(
       class_type: 'EmptyLatentImage',
       inputs: { width: params.width, height: params.height, batch_size: videoParams.frames },
     }
+  } else if (strategy === 'unet_ltx') {
+    // LTX Video latent — uses length instead of batch_size
+    workflow[latentId] = {
+      class_type: 'EmptyLTXVLatentVideo',
+      inputs: { width: params.width, height: params.height, length: videoParams.frames, batch_size: 1 },
+    }
+  } else if (strategy === 'unet_flux2') {
+    // FLUX 2 uses its own latent node
+    const latentNode = nodes.latentInit.includes('EmptyFlux2LatentImage')
+      ? 'EmptyFlux2LatentImage'
+      : 'EmptySD3LatentImage'
+    workflow[latentId] = {
+      class_type: latentNode,
+      inputs: { width: params.width, height: params.height, batch_size: params.batchSize },
+    }
   } else if (strategy === 'unet_flux') {
-    // FLUX uses SD3 latent
+    // FLUX 1 uses SD3 latent
     const latentNode = nodes.latentInit.includes('EmptySD3LatentImage')
       ? 'EmptySD3LatentImage'
       : 'EmptyLatentImage'
-
     workflow[latentId] = {
       class_type: latentNode,
       inputs: { width: params.width, height: params.height, batch_size: params.batchSize },
