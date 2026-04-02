@@ -7,7 +7,6 @@ mod state;
 
 use state::AppState;
 use tauri::Manager;
-use tauri::WebviewWindowBuilder;
 
 fn main() {
     let app_state = AppState::new();
@@ -50,9 +49,11 @@ fn main() {
             commands::proxy::fetch_external_bytes,
             commands::proxy::proxy_localhost,
             commands::proxy::proxy_localhost_stream,
+            // Window management
+            commands::process::show_window,
         ])
         .setup(|app| {
-            // Open DevTools for debugging
+            #[cfg(debug_assertions)]
             if let Some(window) = app.get_webview_window("main") {
                 window.open_devtools();
             }
@@ -65,8 +66,13 @@ fn main() {
             // Auto-start ComfyUI
             commands::process::auto_start_comfyui(&state);
 
-            // Start Whisper server (background — model loading takes minutes)
-            commands::whisper::auto_start_whisper(app.handle(), &state);
+            // Start Whisper server in background thread (model loading can take minutes)
+            let handle = app.handle().clone();
+            let python_bin = state.python_bin.clone();
+            let whisper = state.whisper.clone();
+            std::thread::spawn(move || {
+                commands::whisper::auto_start_whisper_sync(&handle, &python_bin, &whisper);
+            });
 
             Ok(())
         })

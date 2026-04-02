@@ -1,12 +1,18 @@
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
 use std::path::PathBuf;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 use base64::Engine;
 use tauri::{Manager, State};
 
 use crate::state::AppState;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 pub struct WhisperServer {
     process: Option<Child>,
@@ -34,12 +40,14 @@ impl WhisperServer {
 
         println!("[Whisper] Starting persistent server: {} {}", python_bin, script_path);
 
-        let mut child = Command::new(python_bin)
-            .arg(script_path)
+        let mut cmd = Command::new(python_bin);
+        cmd.arg(script_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+            .stderr(Stdio::piped());
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let mut child = cmd.spawn()
             .map_err(|e| format!("Failed to start whisper server: {}", e))?;
 
         let stdin = child.stdin.take().ok_or("Failed to get stdin")?;
@@ -202,12 +210,14 @@ pub fn transcribe(audio_base64: String, content_type: String, state: State<'_, A
     }
 }
 
-/// Auto-start whisper server on app launch
-pub fn auto_start_whisper(app: &tauri::AppHandle, state: &AppState) {
+/// Synchronous whisper startup (runs in background thread)
+pub fn auto_start_whisper_sync(app: &tauri::AppHandle, python_bin: &str, whisper: &Arc<Mutex<WhisperServer>>) {
     // Check if faster-whisper is installed
-    let check = Command::new(&state.python_bin)
-        .args(["-c", "import faster_whisper"])
-        .output();
+    let mut cmd = Command::new(python_bin);
+    cmd.args(["-c", "import faster_whisper"]);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let check = cmd.output();
 
     match check {
         Ok(output) if output.status.success() => {
@@ -225,7 +235,6 @@ pub fn auto_start_whisper(app: &tauri::AppHandle, state: &AppState) {
         .ok()
         .map(|d: PathBuf| d.join("resources").join("whisper_server.py"))
         .filter(|p: &PathBuf| p.exists())
-        // Fallback: check public/ for dev mode
         .or_else(|| {
             let dev_path = PathBuf::from("public").join("whisper_server.py");
             if dev_path.exists() { Some(dev_path) } else { None }
@@ -234,12 +243,8 @@ pub fn auto_start_whisper(app: &tauri::AppHandle, state: &AppState) {
     match script_path {
         Some(path) => {
             let path_str: String = path.to_string_lossy().to_string();
-            let python_bin = state.python_bin.clone();
-
-            // Start synchronously — the model loading blocks but that's OK
-            // since Tauri setup runs before the window is shown
-            let mut ws = state.whisper.lock().unwrap();
-            if let Err(e) = ws.start(&python_bin, &path_str) {
+            let mut ws = whisper.lock().unwrap();
+            if let Err(e) = ws.start(python_bin, &path_str) {
                 println!("[Whisper] Failed to start: {}", e);
             }
         }

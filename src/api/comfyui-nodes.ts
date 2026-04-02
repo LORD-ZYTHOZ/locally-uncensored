@@ -39,7 +39,7 @@ export interface AvailableModels {
 
 let nodeInfoCache: Record<string, NodeMetadata> | null = null
 let cacheTimestamp = 0
-const CACHE_TTL = 60_000 // 1 minute
+const CACHE_TTL = 300_000 // 5 minutes
 
 // ─── Fetch all node info (cached) ───
 

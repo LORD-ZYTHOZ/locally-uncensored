@@ -37,7 +37,7 @@ impl Default for InstallState {
 pub struct AppState {
     pub comfy_process: Mutex<Option<Child>>,
     pub comfy_path: Mutex<Option<String>>,
-    pub whisper: Mutex<WhisperServer>,
+    pub whisper: Arc<Mutex<WhisperServer>>,
     pub downloads: Arc<Mutex<HashMap<String, DownloadProgress>>>,
     pub download_tokens: Arc<Mutex<HashMap<String, CancellationToken>>>,
     pub install_status: Mutex<InstallState>,
@@ -54,7 +54,7 @@ impl AppState {
         Self {
             comfy_process: Mutex::new(None),
             comfy_path: Mutex::new(None),
-            whisper: Mutex::new(WhisperServer::new()),
+            whisper: Arc::new(Mutex::new(WhisperServer::new())),
             downloads: Arc::new(Mutex::new(HashMap::new())),
             download_tokens: Arc::new(Mutex::new(HashMap::new())),
             install_status: Mutex::new(InstallState::default()),

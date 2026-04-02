@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Image, Video, WifiOff, Loader2, AlertTriangle, RefreshCw, Settings, FolderOpen, HardDriveDownload } from 'lucide-react'
+import { Image, Video, WifiOff, Loader2, AlertTriangle, RefreshCw, Settings, FolderOpen, HardDriveDownload, CheckCircle2, XCircle, Download } from 'lucide-react'
 import { backendCall } from '../../api/backend'
 import { freeMemory } from '../../api/comfyui'
+import { startModelDownload } from '../../api/discover'
 import { useCreate } from '../../hooks/useCreate'
 import { useCreateStore } from '../../stores/createStore'
+import { useUIStore } from '../../stores/uiStore'
 import { PromptInput } from './PromptInput'
 import { ParamPanel } from './ParamPanel'
 import { OutputDisplay } from './OutputDisplay'
@@ -21,9 +23,9 @@ interface ComfyStatus {
 export function CreateView() {
   const {
     connected, imageModels, videoModels, samplerList, schedulerList,
-    videoBackend, modelsLoaded, checkConnection, fetchModels, generate, cancel,
+    videoBackend, modelsLoaded, checkConnection, fetchModels, runPreflight, generate, cancel,
   } = useCreate()
-  const { mode, setMode, error } = useCreateStore()
+  const { mode, setMode, error, preflightReady, preflightErrors, preflightWarnings } = useCreateStore()
 
   const [status, setStatus] = useState<ComfyStatus | null>(null)
   const [startupLogs, setStartupLogs] = useState<string[]>([])
@@ -290,6 +292,50 @@ export function CreateView() {
               </button>
             </div>
           </div>
+
+          {/* Pre-flight status */}
+          {connected === true && modelsLoaded && preflightReady !== null && (
+            <>
+              {preflightReady && preflightWarnings.length === 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-emerald-400 text-[10px]">
+                  <CheckCircle2 size={11} />
+                  Ready to generate
+                </div>
+              )}
+              {preflightReady && preflightWarnings.length > 0 && (
+                <div className="space-y-1">
+                  {preflightWarnings.map((w, i) => (
+                    <div key={i} className="flex items-start gap-2 px-3 py-1.5 rounded-lg bg-yellow-500/5 border border-yellow-500/10 text-yellow-400 text-[10px]">
+                      <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+                      <span>{w}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!preflightReady && preflightErrors.length > 0 && (
+                <div className="space-y-1">
+                  {preflightErrors.map((e, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/5 border border-red-500/10 text-red-400 text-[10px]">
+                      <XCircle size={11} className="shrink-0" />
+                      <span className="flex-1">{e.message}</span>
+                      {e.downloadUrl && e.downloadFilename && e.downloadSubfolder && (
+                        <button
+                          onClick={async () => {
+                            await startModelDownload(e.downloadUrl!, e.downloadSubfolder!, e.downloadFilename!)
+                            useUIStore.getState().setView('models')
+                          }}
+                          className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[9px] font-medium transition-colors"
+                        >
+                          <Download size={9} />
+                          Download
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
 
           {/* Video info */}
           {mode === 'video' && (videoBackend === 'none' || videoModels.length === 0) && connected === true && (

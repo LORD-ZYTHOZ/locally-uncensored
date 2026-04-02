@@ -49,6 +49,74 @@ export async function resumeDownload(id: string, url: string, subfolder: string)
   await backendCall("resume_download", { id, url, subfolder })
 }
 
+// ─── Component Registry: What each model type needs to work ───
+
+import type { ModelType } from './comfyui'
+
+export interface ComponentSpec {
+  patterns: string[]
+  downloadName: string
+  downloadUrl: string
+  subfolder: string
+}
+
+export interface ComponentRequirements {
+  loader: 'UNETLoader' | 'CheckpointLoaderSimple'
+  vae?: ComponentSpec
+  clip?: ComponentSpec
+  clipSecondary?: ComponentSpec
+  needsSeparateVAE: boolean
+  needsSeparateCLIP: boolean
+}
+
+export const COMPONENT_REGISTRY: Record<ModelType, ComponentRequirements> = {
+  sd15: {
+    loader: 'CheckpointLoaderSimple',
+    needsSeparateVAE: false,
+    needsSeparateCLIP: false,
+  },
+  sdxl: {
+    loader: 'CheckpointLoaderSimple',
+    needsSeparateVAE: false,
+    needsSeparateCLIP: false,
+  },
+  flux: {
+    loader: 'UNETLoader',
+    vae: { patterns: ['ae', 'flux'], downloadName: 'flux2-vae.safetensors', downloadUrl: 'https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/main/split_files/vae/flux2-vae.safetensors', subfolder: 'vae' },
+    clip: { patterns: ['t5xxl', 't5-xxl', 't5_xxl'], downloadName: 't5xxl_fp8_e4m3fn.safetensors', downloadUrl: 'https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors', subfolder: 'text_encoders' },
+    clipSecondary: { patterns: ['clip_l'], downloadName: 'clip_l.safetensors', downloadUrl: 'https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors', subfolder: 'text_encoders' },
+    needsSeparateVAE: true,
+    needsSeparateCLIP: true,
+  },
+  flux2: {
+    loader: 'UNETLoader',
+    vae: { patterns: ['ae', 'flux'], downloadName: 'flux2-vae.safetensors', downloadUrl: 'https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/main/split_files/vae/flux2-vae.safetensors', subfolder: 'vae' },
+    clip: { patterns: ['t5xxl', 't5-xxl', 't5_xxl'], downloadName: 't5xxl_fp8_e4m3fn.safetensors', downloadUrl: 'https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors', subfolder: 'text_encoders' },
+    clipSecondary: { patterns: ['clip_l'], downloadName: 'clip_l.safetensors', downloadUrl: 'https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors', subfolder: 'text_encoders' },
+    needsSeparateVAE: true,
+    needsSeparateCLIP: true,
+  },
+  wan: {
+    loader: 'UNETLoader',
+    vae: { patterns: ['wan'], downloadName: 'wan_2.1_vae.safetensors', downloadUrl: 'https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors', subfolder: 'vae' },
+    clip: { patterns: ['umt5', 'wan'], downloadName: 'umt5_xxl_fp8_e4m3fn_scaled.safetensors', downloadUrl: 'https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors', subfolder: 'text_encoders' },
+    needsSeparateVAE: true,
+    needsSeparateCLIP: true,
+  },
+  hunyuan: {
+    loader: 'UNETLoader',
+    vae: { patterns: ['hunyuanvideo', 'hunyuan'], downloadName: 'hunyuanvideo15_vae_fp16.safetensors', downloadUrl: 'https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/vae/hunyuanvideo15_vae_fp16.safetensors', subfolder: 'vae' },
+    clip: { patterns: ['qwen', 'llava'], downloadName: 'qwen_2.5_vl_7b_fp8_scaled.safetensors', downloadUrl: 'https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors', subfolder: 'text_encoders' },
+    needsSeparateVAE: true,
+    needsSeparateCLIP: true,
+  },
+  unknown: {
+    loader: 'CheckpointLoaderSimple',
+    needsSeparateVAE: false,
+    needsSeparateCLIP: false,
+  },
+}
+
 // ─── Ollama Text Models ───
 
 export async function fetchAbliteratedModels(): Promise<DiscoverModel[]> {

@@ -1,7 +1,24 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ModelType } from '../api/comfyui'
+import { classifyModel } from '../api/comfyui'
+import type { PreflightError } from '../api/preflight'
 // ModelType includes: flux, flux2, sdxl, sd15, wan, hunyuan, unknown
+
+// ─── Optimal defaults per model type (research-backed: Draw Things, Fooocus, ComfyUI) ───
+
+export const MODEL_TYPE_DEFAULTS: Record<ModelType, {
+  steps: number; cfgScale: number; sampler: string; scheduler: string
+  width: number; height: number; frames?: number; fps?: number
+}> = {
+  sd15:    { steps: 25, cfgScale: 7.0, sampler: 'euler_ancestral', scheduler: 'normal', width: 512,  height: 512 },
+  sdxl:    { steps: 25, cfgScale: 7.0, sampler: 'dpmpp_2m',       scheduler: 'karras', width: 1024, height: 1024 },
+  flux:    { steps: 20, cfgScale: 1.0, sampler: 'euler',           scheduler: 'simple', width: 1024, height: 1024 },
+  flux2:   { steps: 20, cfgScale: 1.0, sampler: 'euler',           scheduler: 'simple', width: 1024, height: 1024 },
+  wan:     { steps: 25, cfgScale: 5.0, sampler: 'euler',           scheduler: 'normal', width: 848,  height: 480, frames: 49, fps: 16 },
+  hunyuan: { steps: 30, cfgScale: 6.0, sampler: 'euler',           scheduler: 'normal', width: 848,  height: 480, frames: 45, fps: 15 },
+  unknown: { steps: 20, cfgScale: 7.0, sampler: 'euler',           scheduler: 'normal', width: 1024, height: 1024 },
+}
 
 export interface GalleryItem {
   id: string
@@ -21,6 +38,9 @@ export interface GalleryItem {
   height: number
   batchSize: number
   createdAt: number
+  builderUsed?: 'dynamic' | 'legacy' | 'custom'
+  resolvedVAE?: string
+  resolvedCLIP?: string
 }
 
 interface CreateState {
@@ -46,9 +66,13 @@ interface CreateState {
   currentPromptId: string | null
   error: string | null
   lastGenTime: string | null
+  preflightReady: boolean | null
+  preflightErrors: PreflightError[]
+  preflightWarnings: string[]
   gallery: GalleryItem[]
   promptHistory: string[]
 
+  setPreflightStatus: (ready: boolean | null, errors: PreflightError[], warnings: string[]) => void
   setMode: (mode: 'image' | 'video') => void
   setPrompt: (prompt: string) => void
   setNegativePrompt: (negativePrompt: string) => void
@@ -99,14 +123,37 @@ export const useCreateStore = create<CreateState>()(
       currentPromptId: null,
       error: null,
       lastGenTime: null,
+      preflightReady: null,
+      preflightErrors: [],
+      preflightWarnings: [],
       gallery: [],
       promptHistory: [],
 
+      setPreflightStatus: (ready, errors, warnings) => set({ preflightReady: ready, preflightErrors: errors, preflightWarnings: warnings }),
       setMode: (mode) => set({ mode }),
       setPrompt: (prompt) => set({ prompt }),
       setNegativePrompt: (negativePrompt) => set({ negativePrompt }),
-      setImageModel: (model, type) => set({ imageModel: model, imageModelType: type }),
-      setVideoModel: (model) => set({ videoModel: model }),
+      setImageModel: (model, type) => {
+        const defaults = MODEL_TYPE_DEFAULTS[type]
+        set({
+          imageModel: model, imageModelType: type,
+          steps: defaults.steps, cfgScale: defaults.cfgScale,
+          sampler: defaults.sampler, scheduler: defaults.scheduler,
+          width: defaults.width, height: defaults.height,
+        })
+      },
+      setVideoModel: (model) => {
+        const type = classifyModel(model)
+        const defaults = MODEL_TYPE_DEFAULTS[type] || MODEL_TYPE_DEFAULTS.unknown
+        set({
+          videoModel: model,
+          steps: defaults.steps, cfgScale: defaults.cfgScale,
+          sampler: defaults.sampler, scheduler: defaults.scheduler,
+          width: defaults.width, height: defaults.height,
+          ...(defaults.frames ? { frames: defaults.frames } : {}),
+          ...(defaults.fps ? { fps: defaults.fps } : {}),
+        })
+      },
       setSampler: (sampler) => set({ sampler }),
       setScheduler: (scheduler) => set({ scheduler }),
       setSteps: (steps) => set({ steps: Math.max(1, Math.min(200, Math.floor(steps))) }),

@@ -3,9 +3,15 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 use tauri::State;
 
 use crate::state::AppState;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 fn agent_workspace() -> PathBuf {
     dirs::home_dir().unwrap_or_default().join("agent-workspace")
@@ -41,13 +47,15 @@ pub fn execute_code(
     let workspace = agent_workspace();
     let _ = fs::create_dir_all(&workspace);
 
-    let mut child = Command::new(&state.python_bin)
-        .arg(&script_path)
+    let mut cmd = Command::new(&state.python_bin);
+    cmd.arg(&script_path)
         .current_dir(&workspace)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let mut child = cmd.spawn()
         .map_err(|e| format!("Spawn Python: {}", e))?;
 
     // Poll-based timeout since std::process::Child has no wait_timeout

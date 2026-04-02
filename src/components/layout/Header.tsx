@@ -30,6 +30,7 @@ export function Header() {
           }}
           className="flex items-center gap-2 text-gray-800 dark:text-gray-200 hover:opacity-80 transition"
         >
+          <img src="/LU-monogram-bw.png" alt="" width={22} height={22} className="dark:invert-0 invert" />
           <span className="font-bold text-sm tracking-wider">LOCALLY UNCENSORED</span>
         </button>
       </div>

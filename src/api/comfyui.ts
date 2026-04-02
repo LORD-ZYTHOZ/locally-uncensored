@@ -38,14 +38,51 @@ export interface ClassifiedModel {
 
 // ─── Model Classification ───
 
+// Known community models → pre-classified for reliability
+const KNOWN_MODELS: Record<string, ModelType> = {
+  juggernaut: 'sdxl',
+  realvis: 'sdxl',
+  animagine: 'sdxl',
+  pony: 'sdxl',
+  illustrious: 'sdxl',
+  noobai: 'sdxl',
+  proteus: 'sdxl',
+  copax: 'sdxl',
+  zavychroma: 'sdxl',
+  epicrealism: 'sdxl',
+  realisticvision: 'sd15',
+  deliberate: 'sd15',
+  revanimated: 'sd15',
+  dreamshaper: 'sd15', // dreamshaper XL handled by 'xl' check first
+  absolutereality: 'sd15',
+}
+
 export function classifyModel(name: string): ModelType {
   const lower = name.toLowerCase()
-  if (lower.includes('flux-2') || lower.includes('flux2')) return 'flux2'
-  if (lower.includes('flux')) return 'flux'
+
+  // Video models — most specific first
   if (lower.includes('wan')) return 'wan'
   if (lower.includes('hunyuan')) return 'hunyuan'
-  if (lower.includes('sdxl') || lower.includes('xl')) return 'sdxl'
-  if (lower.includes('sd15') || lower.includes('sd_1') || lower.includes('v1-5') || lower.includes('1.5')) return 'sd15'
+
+  // FLUX variants
+  if (lower.includes('flux-2') || lower.includes('flux2')) return 'flux2'
+  if (lower.includes('flux')) return 'flux'
+
+  // Explicit architecture tags
+  if (lower.includes('sdxl') || lower.includes('sd_xl')) return 'sdxl'
+  if (lower.includes('sd15') || lower.includes('sd_1') || lower.includes('v1-5') || lower.includes('sd1.5')) return 'sd15'
+
+  // "xl" suffix/tag (but not "xxl" which is a text encoder)
+  if (/[_\-.]xl[_\-.]|[_\-.]xl$|_xl_/i.test(name)) return 'sdxl'
+
+  // Known community model names
+  for (const [keyword, type] of Object.entries(KNOWN_MODELS)) {
+    if (lower.includes(keyword)) return type
+  }
+
+  // SD 1.5 patterns
+  if (lower.includes('1.5') || lower.includes('v1_5')) return 'sd15'
+
   return 'unknown'
 }
 

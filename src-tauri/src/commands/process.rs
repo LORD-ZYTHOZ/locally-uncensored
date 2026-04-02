@@ -1,9 +1,24 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use tauri::State;
+use tauri::{Manager, State};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 use crate::state::AppState;
+
+/// Windows: hide console windows for spawned processes
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+/// Show the main window (called from frontend after React renders)
+#[tauri::command]
+pub fn show_window(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+    }
+}
 
 /// Skip these directories during ComfyUI search
 const SKIP_DIRS: &[&str] = &[
@@ -142,24 +157,29 @@ fn is_comfyui_running() -> bool {
 #[tauri::command]
 pub fn start_ollama(_state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     // Check if already running
-    if let Ok(output) = Command::new("tasklist")
-        .args(["/FI", "IMAGENAME eq ollama.exe"])
-        .output()
     {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.contains("ollama.exe") {
-            println!("[Ollama] Already running");
-            return Ok(serde_json::json!({"status": "already_running"}));
+        let mut cmd = Command::new("tasklist");
+        cmd.args(["/FI", "IMAGENAME eq ollama.exe"]);
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        if let Ok(output) = cmd.output() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if stdout.contains("ollama.exe") {
+                println!("[Ollama] Already running");
+                return Ok(serde_json::json!({"status": "already_running"}));
+            }
         }
     }
 
     println!("[Ollama] Starting...");
-    let result = Command::new("ollama")
-        .arg("serve")
+    let mut cmd = Command::new("ollama");
+    cmd.arg("serve")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn();
+        .stderr(Stdio::null());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let result = cmd.spawn();
 
     match result {
         Ok(_) => {
@@ -199,13 +219,15 @@ pub fn start_comfyui(state: State<'_, AppState>) -> Result<serde_json::Value, St
     println!("[ComfyUI] Using Python: {}", python);
     println!("[ComfyUI] Starting from: {}", comfy_path);
 
-    let mut child = Command::new(python)
-        .args(["main.py", "--listen", "127.0.0.1", "--port", "8188"])
+    let mut cmd = Command::new(python);
+    cmd.args(["main.py", "--listen", "127.0.0.1", "--port", "8188"])
         .current_dir(&comfy_path)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let mut child = cmd.spawn()
         .map_err(|e| format!("Failed to start ComfyUI (python={}): {}", python, e))?;
 
     // Drain stdout/stderr in background threads to prevent buffer deadlock
@@ -249,9 +271,11 @@ pub fn stop_comfyui(state: State<'_, AppState>) -> Result<serde_json::Value, Str
     if let Some(ref mut child) = *proc {
         let pid = child.id();
         if cfg!(target_os = "windows") {
-            let _ = Command::new("taskkill")
-                .args(["/pid", &pid.to_string(), "/T", "/F"])
-                .output();
+            let mut cmd = Command::new("taskkill");
+            cmd.args(["/pid", &pid.to_string(), "/T", "/F"]);
+            #[cfg(target_os = "windows")]
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            let _ = cmd.output();
         } else {
             let _ = child.kill();
         }
@@ -337,25 +361,29 @@ pub fn set_comfyui_path(path: String, state: State<'_, AppState>) -> Result<serd
 /// Auto-start Ollama on app launch (called from setup)
 pub fn auto_start_ollama(_state: &AppState) {
     // Check if already running
-    if let Ok(output) = Command::new("tasklist")
-        .args(["/FI", "IMAGENAME eq ollama.exe"])
-        .output()
     {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.contains("ollama.exe") {
-            println!("[Ollama] Already running");
-            return;
+        let mut cmd = Command::new("tasklist");
+        cmd.args(["/FI", "IMAGENAME eq ollama.exe"]);
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        if let Ok(output) = cmd.output() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if stdout.contains("ollama.exe") {
+                println!("[Ollama] Already running");
+                return;
+            }
         }
     }
 
     println!("[Ollama] Starting...");
-    match Command::new("ollama")
-        .arg("serve")
+    let mut cmd = Command::new("ollama");
+    cmd.arg("serve")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-    {
+        .stderr(Stdio::null());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    match cmd.spawn() {
         Ok(_) => println!("[Ollama] Started"),
         Err(e) => println!("[Ollama] Failed to start: {}", e),
     }
@@ -381,14 +409,15 @@ pub fn auto_start_comfyui(state: &AppState) {
             println!("[ComfyUI] Auto-starting from: {}", path);
             *state.comfy_path.lock().unwrap() = Some(path.clone());
 
-            match Command::new(&state.python_bin)
-                .args(["main.py", "--listen", "127.0.0.1", "--port", "8188"])
+            let mut cmd = Command::new(&state.python_bin);
+            cmd.args(["main.py", "--listen", "127.0.0.1", "--port", "8188"])
                 .current_dir(&path)
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-            {
+                .stderr(Stdio::piped());
+            #[cfg(target_os = "windows")]
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            match cmd.spawn() {
                 Ok(mut child) => {
                     // Drain stdout/stderr in background threads to prevent buffer deadlock
                     if let Some(stdout) = child.stdout.take() {

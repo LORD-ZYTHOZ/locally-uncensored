@@ -13,13 +13,24 @@ interface Props {
   modelsLoaded: boolean
 }
 
-const IMG_SIZE_PRESETS = [
+const IMG_SIZE_PRESETS_SD15 = [
   { label: '512', w: 512, h: 512 },
+  { label: '512x768', w: 512, h: 768 },
+  { label: '768x512', w: 768, h: 512 },
   { label: '768', w: 768, h: 768 },
+]
+
+const IMG_SIZE_PRESETS_XL = [
   { label: '1024', w: 1024, h: 1024 },
   { label: '768x1344', w: 768, h: 1344 },
   { label: '1344x768', w: 1344, h: 768 },
+  { label: '896x1152', w: 896, h: 1152 },
 ]
+
+function getImageSizePresets(modelType: ModelType) {
+  if (modelType === 'sd15') return IMG_SIZE_PRESETS_SD15
+  return IMG_SIZE_PRESETS_XL
+}
 
 const VID_SIZE_PRESETS = [
   { label: '480p', w: 848, h: 480 },
@@ -41,7 +52,7 @@ const TYPE_BADGE: Record<ModelType, { label: string; color: string }> = {
 export function ParamPanel({ imageModels, videoModels, samplerList, schedulerList, modelsLoaded }: Props) {
   const store = useCreateStore()
   const isVideo = store.mode === 'video'
-  const sizePresets = isVideo ? VID_SIZE_PRESETS : IMG_SIZE_PRESETS
+  const sizePresets = isVideo ? VID_SIZE_PRESETS : getImageSizePresets(store.imageModelType)
   const models = isVideo ? videoModels : imageModels
 
   const sel = 'w-full px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/8 text-gray-900 dark:text-white text-[11px] focus:outline-none focus:border-gray-400 dark:focus:border-white/20 appearance-none cursor-pointer'

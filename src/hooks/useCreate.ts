@@ -22,6 +22,7 @@ import { getAllNodeInfo } from '../api/comfyui-nodes'
 import { useCreateStore, type GalleryItem } from '../stores/createStore'
 import { useWorkflowStore } from '../stores/workflowStore'
 import { injectParameters } from '../api/workflows'
+import { preflightCheck } from '../api/preflight'
 
 export function useCreate() {
   const [connected, setConnected] = useState<boolean | null>(null)
@@ -45,6 +46,25 @@ export function useCreate() {
     const ok = await checkComfyConnection()
     setConnected(ok)
     return ok
+  }, [])
+
+  const runPreflight = useCallback(async () => {
+    const state = useCreateStore.getState()
+    const activeModel = state.mode === 'image' ? state.imageModel : state.videoModel
+    if (!activeModel) {
+      state.setPreflightStatus(null, [], [])
+      return
+    }
+    try {
+      const result = await preflightCheck(activeModel, state.mode, state.width, state.height)
+      state.setPreflightStatus(
+        result.ready,
+        result.errors,
+        result.warnings.map(w => w.message),
+      )
+    } catch {
+      state.setPreflightStatus(null, [], [])
+    }
   }, [])
 
   const fetchModels = useCallback(async () => {
@@ -80,10 +100,12 @@ export function useCreate() {
           state.setImageModel(state.imageModel, current.type)
         }
       }
+      // Run preflight check after models are loaded
+      setTimeout(() => runPreflight(), 100)
     } catch (err) {
       console.error('[useCreate] Failed to fetch models:', err)
     }
-  }, [])
+  }, [runPreflight])
 
   // Auto-refresh models when a ComfyUI model download completes
   useEffect(() => {
@@ -133,6 +155,7 @@ export function useCreate() {
       const baseParams = { prompt, negativePrompt, model: activeModel, sampler, scheduler, steps, cfgScale, width, height, seed, batchSize }
 
       let workflow: Record<string, any>
+      let builderUsed: 'dynamic' | 'legacy' | 'custom' = 'dynamic'
 
       // Check for custom workflow assignment — but verify it's compatible with the model
       let customWf = useWorkflowStore.getState().getWorkflowForModel(activeModel, imageModelType)
@@ -152,6 +175,7 @@ export function useCreate() {
       console.log('[useCreate] Custom workflow check:', { activeModel, imageModelType, found: customWf?.name ?? 'NONE (auto)' })
 
       if (customWf) {
+        builderUsed = 'custom'
         setProgress(5, `Using workflow: ${customWf.name}...`)
         const params = mode === 'video' ? { ...baseParams, frames, fps } : baseParams
         workflow = await injectParameters(customWf.workflow, customWf.parameterMap, params, imageModelType)
@@ -161,9 +185,12 @@ export function useCreate() {
         try {
           const genParams = mode === 'video' ? { ...baseParams, frames, fps } : baseParams
           workflow = await buildDynamicWorkflow(genParams, imageModelType)
+          builderUsed = 'dynamic'
         } catch (dynErr) {
           // Fallback to legacy builders if dynamic fails
           console.warn('[useCreate] Dynamic builder failed, using legacy:', dynErr)
+          builderUsed = 'legacy'
+          setProgress(5, 'Using legacy builder...')
           if (mode === 'video') {
             workflow = await buildTxt2VidWorkflow({ ...baseParams, frames, fps }, videoBackend)
           } else {
@@ -267,6 +294,7 @@ export function useCreate() {
                     steps, cfgScale, sampler, scheduler, width, height,
                     batchSize,
                     createdAt: Date.now(),
+                    builderUsed,
                   }
                   addToGallery(galleryItem)
                 }
@@ -320,6 +348,7 @@ export function useCreate() {
     modelsLoaded,
     checkConnection,
     fetchModels,
+    runPreflight,
     generate,
     cancel,
   }
