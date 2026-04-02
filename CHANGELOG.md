@@ -2,6 +2,46 @@
 
 All notable changes to Locally Uncensored are documented here.
 
+## [1.5.5] - 2026-04-02
+
+### Added
+- **Zero-Config Model Experience**: Auto-detect model type, apply optimal defaults (steps, CFG, sampler, size)
+- **Pre-flight Validation**: Check VAE/CLIP/nodes before generation with direct download buttons on errors
+- **VRAM-Based Recommendations**: Detect GPU VRAM via ComfyUI, sort bundles by fit ("Fits your GPU" / "Needs more VRAM" badges)
+- **2026 State-of-the-Art Models**: Updated bundles with FLUX 2 Klein 4B, LTX Video 2.3 22B, curated text models (GLM 4.6, Qwen 3)
+- **Download Manager**: Pause, cancel, and resume model downloads (CancellationToken + HTTP Range headers)
+- **TTS Auto-Speak**: Chat responses read aloud when TTS is enabled in settings
+- **6 Complete Model Bundles** — one-click download with all required files:
+  - Image: Juggernaut XL V9, FLUX.1 schnell FP8, FLUX.1 dev FP8
+  - Video: Wan 2.1 1.3B, Wan 2.1 14B FP8, HunyuanVideo 1.5 T2V FP8
+- **RAG IndexedDB Persistence**: Chunk embeddings survive page reload (no more data loss)
+- **ErrorBoundary** around RAG panel (prevents white page on errors)
+- **Splash Screen**: LU logo on startup, window shows only after React renders (no blank screen)
+- **CI/CD Pipeline**: GitHub Actions workflow for PR validation
+- **Accessibility**: aria-label on 48 icon-only buttons across 16 components
+- **LU Monogram Branding**: New logo across app icon, favicon, social preview, README
+
+### Fixed
+- **Tauri .exe fully working**: CORS proxy through Rust, Ollama /api prefix, CSP for IPC, download ID sync, ComfyUI auto-start deadlock
+- **RAG Document Chat**: React 19 infinite loop fix (useShallow for Zustand persist), detailed error messages (Ollama down, model missing, empty file)
+- **CLIP/VAE fallback**: Descriptive error with download instructions instead of silently using wrong model
+- **RAG BM25**: Proper IDF calculation using document frequency across all chunks
+- **Agent image_generate**: Actually calls ComfyUI via dynamic workflow builder (was returning stub)
+- **Whisper check**: isSpeechRecognitionSupported() checks if Whisper is actually running
+- **Chat history**: Filter empty assistant messages before sending to LLM
+- **ComfyUI path discovery**: Deep scan (depth 7), auto-detect from running process, manual path input
+- **Model Manager**: Show diffusion_models alongside checkpoints
+- **Python discovery**: Improved binary detection (AppData, Conda, version check)
+- **Startup**: Whisper loads in background thread (no blocking), terminal windows hidden in release
+
+### Changed
+- Enhanced model classification (15+ known community models) with component registry
+- Landing page: 3x3 model grid with latest models, updated FAQ
+- All landing page images converted to WebP with `<picture>` fallback + width/height for CLS
+- DevTools only in debug builds
+- Removed console.warn from production code, fixed unused imports
+- Cleaned repo: removed internal files (logo concepts, marketing assets, dev drafts)
+
 ## [1.3.0] - 2026-03-31
 
 ### Added

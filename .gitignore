@@ -45,5 +45,11 @@ docs/blog/devto-*.md
 docs/reddit-*.md
 docs/screenshots/marketing_*
 
+# Temp scripts
+find_shield*.py
+replace_shield.py
+scripts/analyze_banner.py
+scripts/replace_logo.py
+
 # OS
 Thumbs.db
