@@ -4,7 +4,8 @@
  * - DEV MODE (npm run dev): Routes to Vite middleware via fetch("/local-api/...")
  * - PRODUCTION (Tauri .exe): Routes to Rust backend via invoke()
  *
- * Ollama/ComfyUI calls go directly to localhost in production (CSP allows it).
+ * IMPORTANT: In Tauri, direct fetch() to localhost is blocked by CORS.
+ * All Ollama/ComfyUI calls must go through invoke('proxy_localhost').
  */
 
 let _invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
@@ -20,6 +21,72 @@ async function getInvoke() {
     _invoke = invoke;
   }
   return _invoke;
+}
+
+/**
+ * Fetch a localhost URL, bypassing CORS in Tauri mode.
+ * In dev mode: uses normal fetch().
+ * In Tauri .exe: routes through Rust proxy_localhost command.
+ */
+export async function localFetch(
+  url: string,
+  options?: { method?: string; body?: string; headers?: Record<string, string> }
+): Promise<Response> {
+  if (!isTauri()) {
+    return fetch(url, {
+      method: options?.method || "GET",
+      headers: options?.headers,
+      body: options?.body,
+    });
+  }
+
+  // In Tauri: route through Rust to bypass CORS
+  const invoke = await getInvoke();
+  const method = options?.method || "GET";
+
+  try {
+    const text = await invoke("proxy_localhost", {
+      url,
+      method,
+      body: options?.body || null,
+    }) as string;
+
+    return new Response(text, { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: String(err) }), { status: 500 });
+  }
+}
+
+/**
+ * Streaming fetch for localhost — returns raw bytes in Tauri, normal Response in dev.
+ * Used for Ollama streaming endpoints (pull, chat).
+ */
+export async function localFetchStream(
+  url: string,
+  options?: { method?: string; body?: string }
+): Promise<Response> {
+  if (!isTauri()) {
+    return fetch(url, {
+      method: options?.method || "GET",
+      body: options?.body,
+      headers: options?.body ? { "Content-Type": "application/json" } : undefined,
+    });
+  }
+
+  // In Tauri: get all bytes at once through Rust proxy (no true streaming, but works)
+  const invoke = await getInvoke();
+  try {
+    const bytes = await invoke("proxy_localhost_stream", {
+      url,
+      method: options?.method || "GET",
+      body: options?.body || null,
+    }) as number[];
+
+    const uint8 = new Uint8Array(bytes);
+    return new Response(uint8, { status: 200, headers: { "Content-Type": "application/x-ndjson" } });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: String(err) }), { status: 500 });
+  }
 }
 
 /**
@@ -51,6 +118,9 @@ export async function backendCall<T = any>(
     file_write: { path: "/local-api/file-write", method: "POST" },
     download_model: { path: "/local-api/download-model", method: "POST" },
     download_progress: { path: "/local-api/download-progress" },
+    pause_download: { path: "/local-api/pause-download", method: "POST" },
+    cancel_download: { path: "/local-api/cancel-download", method: "POST" },
+    resume_download: { path: "/local-api/resume-download", method: "POST" },
     web_search: { path: "/local-api/web-search", method: "POST" },
     search_status: { path: "/local-api/search-status" },
     install_searxng: { path: "/local-api/install-searxng", method: "POST" },
@@ -95,7 +165,7 @@ export async function backendCall<T = any>(
 /** Get the base URL for Ollama API calls */
 export function ollamaUrl(path: string): string {
   if (isTauri()) {
-    return `http://localhost:11434${path}`;
+    return `http://localhost:11434/api${path}`;
   }
   return `/api${path}`;
 }

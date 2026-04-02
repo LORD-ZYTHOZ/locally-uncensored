@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Download, ArrowLeft, RefreshCw, MessageSquare, Image, Video, Layers } from 'lucide-react'
+import { Download, ArrowLeft, RefreshCw, MessageSquare, Image, Video, Layers, AlertTriangle, FolderOpen } from 'lucide-react'
 import { useModels } from '../../hooks/useModels'
 import { useUIStore } from '../../stores/uiStore'
 import { ModelCard } from './ModelCard'
@@ -9,6 +9,7 @@ import { DiscoverModels } from './DiscoverModels'
 import { Modal } from '../ui/Modal'
 import { GlowButton } from '../ui/GlowButton'
 import { showModel } from '../../api/ollama'
+import { backendCall, isTauri } from '../../api/backend'
 import type { ModelCategory, AIModel } from '../../types/models'
 
 const CATEGORY_TABS: { key: ModelCategory; label: string; icon: typeof Layers }[] = [
@@ -26,10 +27,35 @@ export function ModelManager() {
   const [modelInfo, setModelInfo] = useState<any>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [tab, setTab] = useState<'installed' | 'discover'>('installed')
+  const [comfyStatus, setComfyStatus] = useState<{ running: boolean; found: boolean; path: string | null } | null>(null)
+  const [comfyPathInput, setComfyPathInput] = useState('')
+  const [comfyPathError, setComfyPathError] = useState('')
+  const [comfyPathSaving, setComfyPathSaving] = useState(false)
 
   useEffect(() => {
     fetchModels()
+    // Check ComfyUI status
+    backendCall('comfyui_status').then(setComfyStatus).catch(() => {})
   }, [fetchModels])
+
+  const handleSetComfyPath = async () => {
+    if (!comfyPathInput.trim()) { setComfyPathError('Enter a path'); return }
+    setComfyPathSaving(true)
+    setComfyPathError('')
+    try {
+      const data = await backendCall('set_comfyui_path', { path: comfyPathInput.trim() })
+      if (data.status === 'saved' || data.status === 'ok') {
+        setComfyStatus(prev => prev ? { ...prev, found: true, path: comfyPathInput.trim() } : null)
+        setComfyPathInput('')
+        fetchModels()
+      } else {
+        setComfyPathError(data.error || 'Invalid path')
+      }
+    } catch (err) {
+      setComfyPathError(String(err))
+    }
+    setComfyPathSaving(false)
+  }
 
   const handleInfo = async (name: string) => {
     try {
@@ -72,6 +98,42 @@ export function ModelManager() {
             </GlowButton>
           </div>
         </div>
+
+        {/* ComfyUI path warning */}
+        {comfyStatus && !comfyStatus.found && !comfyStatus.path && (
+          <div className="mb-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+            <div className="flex items-start gap-2 mb-2">
+              <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">ComfyUI not found</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Image/Video model downloads need the ComfyUI path. Enter it below or install ComfyUI first.</p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-2">
+              <div className="flex-1 flex items-center gap-2">
+                <FolderOpen size={16} className="text-amber-500 shrink-0" />
+                <input
+                  value={comfyPathInput}
+                  onChange={(e) => { setComfyPathInput(e.target.value); setComfyPathError('') }}
+                  placeholder="C:\Users\you\ComfyUI"
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-white dark:bg-black/20 border border-amber-300 dark:border-amber-500/30 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+                />
+              </div>
+              <button
+                onClick={handleSetComfyPath}
+                disabled={comfyPathSaving}
+                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {comfyPathSaving ? 'Saving...' : 'Set Path'}
+              </button>
+            </div>
+            {comfyPathError && <p className="text-xs text-red-500 mt-1">{comfyPathError}</p>}
+          </div>
+        )}
+
+        {comfyStatus?.path && (
+          <p className="text-xs text-gray-400 mb-4">ComfyUI: {comfyStatus.path}</p>
+        )}
 
         {/* Main tabs: Installed / Discover */}
         <div className="flex gap-1 mb-4 p-1 bg-gray-100 dark:bg-white/5 rounded-lg w-fit">

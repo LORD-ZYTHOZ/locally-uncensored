@@ -42,6 +42,79 @@ pub async fn fetch_external_bytes(url: String) -> Result<Vec<u8>, String> {
     resp.bytes().await.map(|b| b.to_vec()).map_err(|e| e.to_string())
 }
 
+/// Generic localhost proxy — fetch any localhost URL bypassing CORS.
+/// Used for Ollama and ComfyUI API calls in production mode.
+#[tauri::command]
+pub async fn proxy_localhost(url: String, method: Option<String>, body: Option<String>) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("LocallyUncensored/1.5")
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let http_method = method.unwrap_or_else(|| "GET".to_string());
+
+    let mut request = match http_method.as_str() {
+        "POST" => client.post(&url),
+        "DELETE" => client.delete(&url),
+        "PUT" => client.put(&url),
+        _ => client.get(&url),
+    };
+
+    if let Some(body_str) = body {
+        request = request.header("Content-Type", "application/json").body(body_str);
+    }
+
+    let resp = request
+        .send()
+        .await
+        .map_err(|e| format!("proxy_localhost: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status().as_u16();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {}: {}", status, text));
+    }
+
+    resp.text().await.map_err(|e| e.to_string())
+}
+
+/// Streaming localhost proxy — returns raw bytes for streaming responses (Ollama pull/chat).
+#[tauri::command]
+pub async fn proxy_localhost_stream(url: String, method: Option<String>, body: Option<String>) -> Result<Vec<u8>, String> {
+    let client = reqwest::Client::builder()
+        .user_agent("LocallyUncensored/1.5")
+        .timeout(std::time::Duration::from_secs(7200))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let http_method = method.unwrap_or_else(|| "GET".to_string());
+
+    let mut request = match http_method.as_str() {
+        "POST" => client.post(&url),
+        "DELETE" => client.delete(&url),
+        "PUT" => client.put(&url),
+        _ => client.get(&url),
+    };
+
+    if let Some(body_str) = body {
+        request = request.header("Content-Type", "application/json").body(body_str);
+    }
+
+    let resp = request
+        .send()
+        .await
+        .map_err(|e| format!("proxy_localhost_stream: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status().as_u16();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {}: {}", status, text));
+    }
+
+    resp.bytes().await.map(|b| b.to_vec()).map_err(|e| e.to_string())
+}
+
 /// Proxy search requests to ollama.com (needed because frontend can't CORS to ollama.com)
 #[tauri::command]
 pub async fn ollama_search(query: String) -> Result<serde_json::Value, String> {

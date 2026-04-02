@@ -15,9 +15,15 @@ fn scan_for_comfyui(dir: &Path, depth: u32) -> Option<PathBuf> {
     if depth == 0 {
         return None;
     }
-    let entries = fs::read_dir(dir).ok()?;
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return None,
+    };
     for entry in entries.flatten() {
-        let file_type = entry.file_type().ok()?;
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue, // Skip entries with permission errors
+        };
         if !file_type.is_dir() {
             continue;
         }
@@ -63,15 +69,38 @@ pub fn find_comfyui_path() -> Option<String> {
         }
     }
 
+    // 2b. Deep scan user home directory (finds ComfyUI in non-standard paths like Desktop/bs/IMage Gen/ComfyUI)
+    let home2 = dirs::home_dir().unwrap_or_default();
+    if let Some(found) = scan_for_comfyui(&home2, 7) {
+        println!("[ComfyUI] Found via deep home scan: {}", found.display());
+        return Some(found.to_string_lossy().to_string());
+    }
+
     let home = dirs::home_dir().unwrap_or_default();
 
-    // 3. Check common fixed locations
-    let fixed = [
+    // 3. Check common fixed locations (including Stability Matrix, portable installs)
+    let mut fixed: Vec<PathBuf> = vec![
         home.join("ComfyUI"),
         home.join("Desktop").join("ComfyUI"),
         home.join("Documents").join("ComfyUI"),
         PathBuf::from("C:\\ComfyUI"),
+        PathBuf::from("D:\\ComfyUI"),
     ];
+
+    if cfg!(target_os = "windows") {
+        // Stability Matrix stores ComfyUI in AppData
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            fixed.push(PathBuf::from(&appdata).join("StabilityMatrix").join("Packages").join("ComfyUI"));
+        }
+        if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
+            fixed.push(PathBuf::from(&localappdata).join("StabilityMatrix").join("Packages").join("ComfyUI"));
+        }
+        // Common Program Files locations
+        fixed.push(PathBuf::from("C:\\Program Files\\ComfyUI"));
+        fixed.push(PathBuf::from("C:\\AI\\ComfyUI"));
+        fixed.push(PathBuf::from("D:\\AI\\ComfyUI"));
+    }
+
     for p in &fixed {
         if p.join("main.py").exists() {
             return Some(p.to_string_lossy().to_string());
@@ -87,6 +116,7 @@ pub fn find_comfyui_path() -> Option<String> {
     if cfg!(target_os = "windows") {
         scan_roots.push(PathBuf::from("C:\\"));
         scan_roots.push(PathBuf::from("D:\\"));
+        scan_roots.push(PathBuf::from("E:\\"));
     } else {
         scan_roots.push(PathBuf::from("/opt"));
         scan_roots.push(PathBuf::from("/usr/local"));
@@ -94,7 +124,7 @@ pub fn find_comfyui_path() -> Option<String> {
 
     for root in &scan_roots {
         if root.exists() {
-            if let Some(found) = scan_for_comfyui(root, 4) {
+            if let Some(found) = scan_for_comfyui(root, 5) {
                 return Some(found.to_string_lossy().to_string());
             }
         }
@@ -110,7 +140,7 @@ fn is_comfyui_running() -> bool {
 }
 
 #[tauri::command]
-pub fn start_ollama(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+pub fn start_ollama(_state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     // Check if already running
     if let Ok(output) = Command::new("tasklist")
         .args(["/FI", "IMAGENAME eq ollama.exe"])
@@ -178,13 +208,8 @@ pub fn start_comfyui(state: State<'_, AppState>) -> Result<serde_json::Value, St
         .spawn()
         .map_err(|e| format!("Failed to start ComfyUI (python={}): {}", python, e))?;
 
-    // Read stdout/stderr in background threads to prevent deadlock
-    let logs = state.comfy_logs.lock().unwrap().clone();
-    drop(logs);
-
+    // Drain stdout/stderr in background threads to prevent buffer deadlock
     if let Some(stdout) = child.stdout.take() {
-        let logs_ref = state.comfy_logs.lock().unwrap().clone();
-        drop(logs_ref);
         std::thread::spawn(move || {
             use std::io::{BufRead, BufReader};
             let reader = BufReader::new(stdout);
@@ -310,7 +335,7 @@ pub fn set_comfyui_path(path: String, state: State<'_, AppState>) -> Result<serd
 }
 
 /// Auto-start Ollama on app launch (called from setup)
-pub fn auto_start_ollama(state: &AppState) {
+pub fn auto_start_ollama(_state: &AppState) {
     // Check if already running
     if let Ok(output) = Command::new("tasklist")
         .args(["/FI", "IMAGENAME eq ollama.exe"])
@@ -338,6 +363,14 @@ pub fn auto_start_ollama(state: &AppState) {
 
 /// Auto-start ComfyUI on app launch (called from setup)
 pub fn auto_start_comfyui(state: &AppState) {
+    // Always try to find and store the ComfyUI path (needed for downloads)
+    if state.comfy_path.lock().unwrap().is_none() {
+        if let Some(path) = find_comfyui_path() {
+            println!("[ComfyUI] Found at: {}", path);
+            *state.comfy_path.lock().unwrap() = Some(path);
+        }
+    }
+
     if is_comfyui_running() {
         println!("[ComfyUI] Already running on port 8188");
         return;
@@ -356,7 +389,31 @@ pub fn auto_start_comfyui(state: &AppState) {
                 .stderr(Stdio::piped())
                 .spawn()
             {
-                Ok(child) => {
+                Ok(mut child) => {
+                    // Drain stdout/stderr in background threads to prevent buffer deadlock
+                    if let Some(stdout) = child.stdout.take() {
+                        std::thread::spawn(move || {
+                            use std::io::{BufRead, BufReader};
+                            let reader = BufReader::new(stdout);
+                            for line in reader.lines() {
+                                if let Ok(line) = line {
+                                    println!("[ComfyUI] {}", line);
+                                }
+                            }
+                        });
+                    }
+                    if let Some(stderr) = child.stderr.take() {
+                        std::thread::spawn(move || {
+                            use std::io::{BufRead, BufReader};
+                            let reader = BufReader::new(stderr);
+                            for line in reader.lines() {
+                                if let Ok(line) = line {
+                                    println!("[ComfyUI] {}", line);
+                                }
+                            }
+                        });
+                    }
+
                     *state.comfy_process.lock().unwrap() = Some(child);
                     println!("[ComfyUI] Started");
                 }

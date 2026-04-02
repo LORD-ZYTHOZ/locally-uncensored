@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { listModels, pullModel as pullModelApi, deleteModel as deleteModelApi } from '../api/ollama'
-import { getCheckpoints as getComfyCheckpoints, checkComfyConnection } from '../api/comfyui'
+import { getCheckpoints as getComfyCheckpoints, getDiffusionModels as getComfyDiffusionModels, checkComfyConnection } from '../api/comfyui'
 import { parseNDJSONStream } from '../api/stream'
 import { useModelStore } from '../stores/modelStore'
 import type { PullProgress, AIModel, ModelCategory, ImageModel, VideoModel } from '../types/models'
@@ -27,27 +27,20 @@ export function useModels() {
       const comfyOk = await checkComfyConnection()
       if (comfyOk) {
         try {
-          const checkpoints = await getComfyCheckpoints()
-          comfyModels = checkpoints.map((name): AIModel => {
+          const [checkpoints, diffusionModels] = await Promise.all([
+            getComfyCheckpoints(),
+            getComfyDiffusionModels(),
+          ])
+          const classifyComfyModel = (name: string, source: 'checkpoint' | 'diffusion_model'): AIModel => {
             if (isVideoModel(name)) {
-              return {
-                name,
-                model: name,
-                size: 0,
-                format: 'safetensors',
-                architecture: 'unknown',
-                type: 'video',
-              } as VideoModel
+              return { name, model: name, size: 0, format: 'safetensors', architecture: 'unknown', type: 'video' } as VideoModel
             }
-            return {
-              name,
-              model: name,
-              size: 0,
-              format: 'safetensors',
-              architecture: 'unknown',
-              type: 'image',
-            } as ImageModel
-          })
+            return { name, model: name, size: 0, format: 'safetensors', architecture: 'unknown', type: 'image' } as ImageModel
+          }
+          comfyModels = [
+            ...checkpoints.map((name) => classifyComfyModel(name, 'checkpoint')),
+            ...diffusionModels.map((name) => classifyComfyModel(name, 'diffusion_model')),
+          ]
         } catch {
           // ComfyUI model fetch failed, continue with Ollama only
         }

@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Download, RefreshCw, ExternalLink, Search, Info, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { Pause, Play, X } from 'lucide-react'
 import {
   fetchAbliteratedModels, getImageBundles, getVideoBundles,
   startModelDownload, getDownloadProgress, searchCivitaiModels,
+  pauseDownload, cancelDownload, resumeDownload,
   type DiscoverModel, type DownloadProgress, type ModelBundle, type CivitAIModelResult,
 } from '../../api/discover'
 import { useModels } from '../../hooks/useModels'
@@ -26,6 +28,7 @@ export function DiscoverModels({ category }: Props) {
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [downloads, setDownloads] = useState<Record<string, DownloadProgress>>({})
+  const [downloadMeta, setDownloadMeta] = useState<Record<string, { url: string; subfolder: string }>>({})
   const { pullModel, isPulling, pullProgress, models: installedModels } = useModels()
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -39,21 +42,19 @@ export function DiscoverModels({ category }: Props) {
 
   // Poll download progress
   useEffect(() => {
-    const hasActive = Object.values(downloads).some(d => d.status === 'downloading' || d.status === 'connecting')
+    const hasActive = Object.values(downloads).some(d => d.status === 'downloading' || d.status === 'connecting' || d.status === 'pausing')
     if (hasActive && !pollRef.current) {
       pollRef.current = setInterval(async () => {
         const prog = await getDownloadProgress()
         setDownloads(prev => {
-          // Check if any download just completed
           for (const [id, d] of Object.entries(prog)) {
             if (d.status === 'complete' && prev[id]?.status !== 'complete') {
-              // Trigger model list refresh across the app
               window.dispatchEvent(new CustomEvent('comfyui-model-downloaded'))
             }
           }
           return prog
         })
-        const stillActive = Object.values(prog).some(d => d.status === 'downloading' || d.status === 'connecting')
+        const stillActive = Object.values(prog).some(d => d.status === 'downloading' || d.status === 'connecting' || d.status === 'pausing')
         if (!stillActive && pollRef.current) {
           clearInterval(pollRef.current)
           pollRef.current = null
@@ -81,6 +82,8 @@ export function DiscoverModels({ category }: Props) {
 
   const handleDownload = async (model: DiscoverModel) => {
     if (!model.downloadUrl || !model.filename || !model.subfolder) return
+    // Store meta for resume
+    setDownloadMeta(prev => ({ ...prev, [model.filename!]: { url: model.downloadUrl!, subfolder: model.subfolder! } }))
     const result = await startModelDownload(model.downloadUrl, model.subfolder, model.filename)
     if (result.status === 'started' || result.status === 'already_exists') {
       const prog = await getDownloadProgress()
@@ -91,9 +94,33 @@ export function DiscoverModels({ category }: Props) {
   const handleBundleInstall = async (bundle: ModelBundle) => {
     for (const file of bundle.files) {
       if (file.downloadUrl && file.filename && file.subfolder) {
+        setDownloadMeta(prev => ({ ...prev, [file.filename!]: { url: file.downloadUrl!, subfolder: file.subfolder! } }))
         await startModelDownload(file.downloadUrl, file.subfolder, file.filename)
       }
     }
+    const prog = await getDownloadProgress()
+    setDownloads(prog)
+  }
+
+  const handlePause = async (id: string) => {
+    await pauseDownload(id)
+    const prog = await getDownloadProgress()
+    setDownloads(prog)
+  }
+
+  const handleCancel = async (id: string) => {
+    await cancelDownload(id)
+    setDownloads(prev => {
+      const updated = { ...prev }
+      delete updated[id]
+      return updated
+    })
+  }
+
+  const handleResume = async (id: string) => {
+    const meta = downloadMeta[id]
+    if (!meta) return
+    await resumeDownload(id, meta.url, meta.subfolder)
     const prog = await getDownloadProgress()
     setDownloads(prog)
   }
@@ -177,20 +204,37 @@ export function DiscoverModels({ category }: Props) {
         />
       </div>
 
-      {/* Active downloads summary */}
-      {Object.values(downloads).some(d => d.status === 'downloading' || d.status === 'connecting') && (
+      {/* Download Manager */}
+      {Object.values(downloads).some(d => d.status === 'downloading' || d.status === 'connecting' || d.status === 'pausing' || d.status === 'paused') && (
         <GlassCard className="p-3 space-y-2">
           <h3 className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
-            <Loader2 size={14} className="animate-spin" /> Active Downloads
+            <Loader2 size={14} className={Object.values(downloads).some(d => d.status === 'downloading') ? 'animate-spin' : ''} /> Downloads
           </h3>
-          {Object.entries(downloads).filter(([, d]) => d.status === 'downloading' || d.status === 'connecting').map(([id, d]) => (
+          {Object.entries(downloads).filter(([, d]) => d.status === 'downloading' || d.status === 'connecting' || d.status === 'pausing' || d.status === 'paused').map(([id, d]) => (
             <div key={id} className="space-y-1">
               <div className="flex items-center justify-between text-xs text-gray-500">
-                <span className="truncate">{d.filename}</span>
-                <span>
-                  {d.total > 0 ? `${formatBytes(d.progress)} / ${formatBytes(d.total)}` : 'Connecting...'}
-                  {d.speed > 0 && ` · ${formatBytes(d.speed)}/s`}
-                </span>
+                <span className="truncate flex-1">{d.filename}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span>
+                    {d.status === 'paused' ? 'Paused' : d.status === 'pausing' ? 'Pausing...' : d.total > 0 ? `${formatBytes(d.progress)} / ${formatBytes(d.total)}` : 'Connecting...'}
+                    {d.speed > 0 && d.status === 'downloading' && ` · ${formatBytes(d.speed)}/s`}
+                  </span>
+                  {/* Pause/Resume button */}
+                  {(d.status === 'downloading' || d.status === 'connecting') && (
+                    <button onClick={() => handlePause(id)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 hover:text-yellow-500 transition-colors" title="Pause">
+                      <Pause size={12} />
+                    </button>
+                  )}
+                  {d.status === 'paused' && (
+                    <button onClick={() => handleResume(id)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 hover:text-green-500 transition-colors" title="Resume">
+                      <Play size={12} />
+                    </button>
+                  )}
+                  {/* Cancel button */}
+                  <button onClick={() => handleCancel(id)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 hover:text-red-500 transition-colors" title="Cancel">
+                    <X size={12} />
+                  </button>
+                </div>
               </div>
               {d.total > 0 && <ProgressBar progress={(d.progress / d.total) * 100} />}
             </div>
@@ -297,11 +341,28 @@ export function DiscoverModels({ category }: Props) {
                             )}
                             {fileErr && <span className="text-[10px] text-red-500">Failed: {dlState?.error}</span>}
                           </div>
-                          <div className="shrink-0">
+                          <div className="shrink-0 flex items-center gap-0.5">
                             {fileDone ? (
                               <CheckCircle size={14} className="text-green-500" />
                             ) : fileDl ? (
-                              <Loader2 size={14} className="animate-spin text-blue-400" />
+                              <>
+                                <Loader2 size={14} className="animate-spin text-blue-400" />
+                                <button onClick={() => file.filename && handlePause(file.filename)} className="p-0.5 rounded text-gray-400 hover:text-yellow-500" title="Pause">
+                                  <Pause size={12} />
+                                </button>
+                                <button onClick={() => file.filename && handleCancel(file.filename)} className="p-0.5 rounded text-gray-400 hover:text-red-500" title="Cancel">
+                                  <X size={12} />
+                                </button>
+                              </>
+                            ) : dlState?.status === 'paused' ? (
+                              <>
+                                <button onClick={() => file.filename && handleResume(file.filename)} className="p-0.5 rounded text-gray-400 hover:text-green-500" title="Resume">
+                                  <Play size={12} />
+                                </button>
+                                <button onClick={() => file.filename && handleCancel(file.filename)} className="p-0.5 rounded text-gray-400 hover:text-red-500" title="Cancel">
+                                  <X size={12} />
+                                </button>
+                              </>
                             ) : (
                               <button onClick={() => handleDownload(file)} className="p-1 rounded text-gray-400 hover:text-green-500 transition-colors" title="Download this file">
                                 <Download size={14} />

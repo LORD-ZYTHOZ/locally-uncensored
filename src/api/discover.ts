@@ -19,7 +19,7 @@ export interface DownloadProgress {
   total: number
   speed: number
   filename: string
-  status: 'connecting' | 'downloading' | 'complete' | 'error'
+  status: 'connecting' | 'downloading' | 'pausing' | 'paused' | 'complete' | 'error'
   error?: string
 }
 
@@ -35,6 +35,18 @@ export async function getDownloadProgress(): Promise<Record<string, DownloadProg
   } catch {
     return {}
   }
+}
+
+export async function pauseDownload(id: string): Promise<void> {
+  await backendCall("pause_download", { id })
+}
+
+export async function cancelDownload(id: string): Promise<void> {
+  await backendCall("cancel_download", { id })
+}
+
+export async function resumeDownload(id: string, url: string, subfolder: string): Promise<void> {
+  await backendCall("resume_download", { id, url, subfolder })
 }
 
 // ─── Ollama Text Models ───
@@ -118,14 +130,14 @@ export function getImageBundles(): ModelBundle[] {
       tags: ['SDXL', 'Photorealistic', '1024px'],
       totalSizeGB: 6.5,
       vramRequired: '6-8 GB',
-      workflow: 'wan', // not used for image, just satisfies type
-      url: 'https://civitai.com/models/133005/juggernaut-xl',
+      workflow: 'wan',
+      url: 'https://huggingface.co/RunDiffusion/Juggernaut-XL-v9',
       files: [
         {
-          name: 'Juggernaut XL V9',
+          name: 'Juggernaut XL V9 Photo v2',
           description: 'SDXL checkpoint — includes VAE and CLIP.',
           pulls: '', tags: ['Checkpoint', '6.5 GB'], updated: '',
-          downloadUrl: 'https://huggingface.co/RunDiffusion/Juggernaut-XL-v9/resolve/main/Juggernaut-XL_v9_RunDiffusion.safetensors',
+          downloadUrl: 'https://huggingface.co/RunDiffusion/Juggernaut-XL-v9/resolve/main/Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors',
           filename: 'Juggernaut-XL_v9.safetensors', subfolder: 'checkpoints', sizeGB: 6.5,
         },
       ],
@@ -134,67 +146,95 @@ export function getImageBundles(): ModelBundle[] {
       name: 'RealVisXL V5 (Photorealistic)',
       description: 'Great for portraits, landscapes, and product photos. Ready to use.',
       tags: ['SDXL', 'Photorealistic', '1024px'],
-      totalSizeGB: 6.5,
+      totalSizeGB: 3.5,
       vramRequired: '6-8 GB',
       workflow: 'wan',
-      url: 'https://civitai.com/models/139562/realvisxl',
+      url: 'https://huggingface.co/SG161222/RealVisXL_V5.0',
       files: [
         {
-          name: 'RealVisXL V5',
+          name: 'RealVisXL V5 FP16',
           description: 'SDXL checkpoint — includes VAE and CLIP.',
-          pulls: '', tags: ['Checkpoint', '6.5 GB'], updated: '',
-          downloadUrl: 'https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0.safetensors',
-          filename: 'RealVisXL_V5.safetensors', subfolder: 'checkpoints', sizeGB: 6.5,
+          pulls: '', tags: ['Checkpoint', '3.5 GB'], updated: '',
+          downloadUrl: 'https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors',
+          filename: 'RealVisXL_V5.safetensors', subfolder: 'checkpoints', sizeGB: 3.5,
         },
       ],
     },
     {
-      name: 'FLUX.1 [schnell] (Fast & Modern)',
-      description: 'State-of-the-art image gen. 1-4 steps for fast results. Needs FLUX VAE + CLIP.',
-      tags: ['FLUX', 'Fast', '1024px'],
-      totalSizeGB: 11.8,
-      vramRequired: '10-12 GB',
+      name: 'FLUX.1 [schnell] FP8 (Fast & Modern)',
+      description: 'State-of-the-art image gen. 1-4 steps for fast results. Complete package with all required encoders.',
+      tags: ['FLUX', 'Fast', 'FP8', '1024px'],
+      totalSizeGB: 16,
+      vramRequired: '8-10 GB',
       workflow: 'wan',
-      url: 'https://huggingface.co/black-forest-labs/FLUX.1-schnell',
+      url: 'https://huggingface.co/Comfy-Org/flux1-schnell',
       files: [
         {
-          name: 'FLUX.1 schnell Model',
-          description: 'The main FLUX diffusion model.',
+          name: 'FLUX.1 schnell FP8',
+          description: 'The main FLUX diffusion model (quantized).',
           pulls: '', tags: ['Model', '11.5 GB'], updated: '',
-          downloadUrl: 'https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors',
-          filename: 'flux1-schnell.safetensors', subfolder: 'diffusion_models', sizeGB: 11.5,
+          downloadUrl: 'https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors',
+          filename: 'flux1-schnell-fp8.safetensors', subfolder: 'diffusion_models', sizeGB: 11.5,
         },
         {
           name: 'FLUX VAE',
           description: 'Required autoencoder for FLUX.',
           pulls: '', tags: ['VAE', '335 MB'], updated: '',
-          downloadUrl: 'https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors',
-          filename: 'flux-ae.safetensors', subfolder: 'vae', sizeGB: 0.3,
+          downloadUrl: 'https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/main/split_files/vae/flux2-vae.safetensors',
+          filename: 'flux2-vae.safetensors', subfolder: 'vae', sizeGB: 0.3,
+        },
+        {
+          name: 'T5-XXL Text Encoder (FP8)',
+          description: 'Required text encoder for FLUX prompt understanding.',
+          pulls: '', tags: ['Text Encoder', '3.9 GB'], updated: '',
+          downloadUrl: 'https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors',
+          filename: 't5xxl_fp8_e4m3fn.safetensors', subfolder: 'text_encoders', sizeGB: 3.9,
+        },
+        {
+          name: 'CLIP-L Text Encoder',
+          description: 'Required secondary text encoder for FLUX.',
+          pulls: '', tags: ['Text Encoder', '240 MB'], updated: '',
+          downloadUrl: 'https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors',
+          filename: 'clip_l.safetensors', subfolder: 'text_encoders', sizeGB: 0.2,
         },
       ],
     },
     {
-      name: 'FLUX.1 [dev] (High Quality)',
-      description: 'Highest quality FLUX. More steps but better results. Needs FLUX VAE + CLIP.',
-      tags: ['FLUX', 'Quality', '1024px'],
-      totalSizeGB: 11.8,
-      vramRequired: '10-12 GB',
+      name: 'FLUX.1 [dev] FP8 (High Quality)',
+      description: 'Highest quality FLUX. More steps but better results. Complete package with all required encoders.',
+      tags: ['FLUX', 'Quality', 'FP8', '1024px'],
+      totalSizeGB: 16,
+      vramRequired: '8-10 GB',
       workflow: 'wan',
-      url: 'https://huggingface.co/black-forest-labs/FLUX.1-dev',
+      url: 'https://huggingface.co/Comfy-Org/flux1-dev',
       files: [
         {
-          name: 'FLUX.1 dev Model',
-          description: 'The main FLUX diffusion model (dev variant).',
+          name: 'FLUX.1 dev FP8',
+          description: 'The main FLUX diffusion model (dev, quantized).',
           pulls: '', tags: ['Model', '11.5 GB'], updated: '',
-          downloadUrl: 'https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors',
-          filename: 'flux1-dev.safetensors', subfolder: 'diffusion_models', sizeGB: 11.5,
+          downloadUrl: 'https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors',
+          filename: 'flux1-dev-fp8.safetensors', subfolder: 'diffusion_models', sizeGB: 11.5,
         },
         {
           name: 'FLUX VAE',
           description: 'Required autoencoder for FLUX.',
           pulls: '', tags: ['VAE', '335 MB'], updated: '',
-          downloadUrl: 'https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors',
-          filename: 'flux-ae.safetensors', subfolder: 'vae', sizeGB: 0.3,
+          downloadUrl: 'https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/main/split_files/vae/flux2-vae.safetensors',
+          filename: 'flux2-vae.safetensors', subfolder: 'vae', sizeGB: 0.3,
+        },
+        {
+          name: 'T5-XXL Text Encoder (FP8)',
+          description: 'Required text encoder for FLUX prompt understanding.',
+          pulls: '', tags: ['Text Encoder', '3.9 GB'], updated: '',
+          downloadUrl: 'https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors',
+          filename: 't5xxl_fp8_e4m3fn.safetensors', subfolder: 'text_encoders', sizeGB: 3.9,
+        },
+        {
+          name: 'CLIP-L Text Encoder',
+          description: 'Required secondary text encoder for FLUX.',
+          pulls: '', tags: ['Text Encoder', '240 MB'], updated: '',
+          downloadUrl: 'https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors',
+          filename: 'clip_l.safetensors', subfolder: 'text_encoders', sizeGB: 0.2,
         },
       ],
     },
@@ -224,7 +264,7 @@ export interface ModelBundle {
   tags: string[]
   totalSizeGB: number
   vramRequired: string
-  workflow: 'wan' | 'animatediff'
+  workflow: 'wan' | 'hunyuan' | 'animatediff'
   files: DiscoverModel[]
   url?: string
 }
@@ -292,6 +332,45 @@ export function getVideoBundles(): ModelBundle[] {
           pulls: '', tags: ['CLIP', '4.9 GB'], updated: '',
           downloadUrl: 'https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors',
           filename: 'umt5_xxl_fp8_e4m3fn_scaled.safetensors', subfolder: 'text_encoders', sizeGB: 4.9,
+        },
+      ],
+    },
+    {
+      name: 'HunyuanVideo 1.5 T2V FP8 (High Quality)',
+      description: 'Tencent HunyuanVideo 1.5 — excellent temporal consistency and visual quality. 480p text-to-video with CFG distillation.',
+      tags: ['HunyuanVideo 1.5', '480p', 'Quality'],
+      totalSizeGB: 21.5,
+      vramRequired: '12+ GB',
+      workflow: 'hunyuan',
+      url: 'https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged',
+      files: [
+        {
+          name: 'HunyuanVideo 1.5 T2V FP8',
+          description: 'The main video generation model (480p, CFG distilled, quantized).',
+          pulls: '', tags: ['Model', '13.2 GB'], updated: '',
+          downloadUrl: 'https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/diffusion_models/hunyuanvideo1.5_480p_t2v_cfg_distilled_fp8_scaled.safetensors',
+          filename: 'hunyuanvideo1.5_480p_t2v_fp8.safetensors', subfolder: 'diffusion_models', sizeGB: 13.2,
+        },
+        {
+          name: 'HunyuanVideo 1.5 VAE',
+          description: 'Required video encoder/decoder.',
+          pulls: '', tags: ['VAE', '490 MB'], updated: '',
+          downloadUrl: 'https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/vae/hunyuanvideo15_vae_fp16.safetensors',
+          filename: 'hunyuanvideo15_vae_fp16.safetensors', subfolder: 'vae', sizeGB: 0.5,
+        },
+        {
+          name: 'Qwen 2.5 VL 7B Text Encoder (FP8)',
+          description: 'Required text encoder for HunyuanVideo 1.5.',
+          pulls: '', tags: ['Text Encoder', '7.5 GB'], updated: '',
+          downloadUrl: 'https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors',
+          filename: 'qwen_2.5_vl_7b_fp8_scaled.safetensors', subfolder: 'text_encoders', sizeGB: 7.5,
+        },
+        {
+          name: 'CLIP-L Text Encoder',
+          description: 'Required secondary text encoder.',
+          pulls: '', tags: ['Text Encoder', '240 MB'], updated: '',
+          downloadUrl: 'https://huggingface.co/Comfy-Org/HunyuanVideo_repackaged/resolve/main/split_files/text_encoders/clip_l.safetensors',
+          filename: 'clip_l.safetensors', subfolder: 'text_encoders', sizeGB: 0.2,
         },
       ],
     },

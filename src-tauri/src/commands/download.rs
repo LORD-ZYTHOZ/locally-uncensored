@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use futures_util::StreamExt;
 use tauri::State;
+use tokio_util::sync::CancellationToken;
 
 use crate::state::{AppState, DownloadProgress};
 
@@ -24,7 +25,13 @@ pub async fn download_model(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let comfy_path = {
-        let p = state.comfy_path.lock().unwrap();
+        let mut p = state.comfy_path.lock().unwrap();
+        if p.is_none() {
+            if let Some(found) = crate::commands::process::find_comfyui_path() {
+                println!("[Download] Auto-discovered ComfyUI at: {}", found);
+                *p = Some(found);
+            }
+        }
         p.clone()
     };
 
@@ -35,13 +42,29 @@ pub async fn download_model(
         return Ok(serde_json::json!({"status": "exists", "path": dest_file.to_string_lossy()}));
     }
 
-    let id = format!("{}-{}", subfolder, filename);
+    // Use filename as ID (matches frontend lookup)
+    let id = filename.clone();
+
+    // Check for existing partial download (resume support)
+    let tmp_path = dest_file.with_extension("download");
+    let resume_offset = if tmp_path.exists() {
+        tmp_path.metadata().map(|m| m.len()).unwrap_or(0)
+    } else {
+        0
+    };
+
+    // Create cancellation token
+    let token = CancellationToken::new();
+    {
+        let mut tokens = state.download_tokens.lock().unwrap();
+        tokens.insert(id.clone(), token.clone());
+    }
 
     // Initialize progress
     {
         let mut downloads = state.downloads.lock().unwrap();
         downloads.insert(id.clone(), DownloadProgress {
-            progress: 0,
+            progress: resume_offset,
             total: 0,
             speed: 0.0,
             filename: filename.clone(),
@@ -50,13 +73,13 @@ pub async fn download_model(
         });
     }
 
-    // Clone the Arc so the spawned task can update progress
     let downloads_arc = Arc::clone(&state.downloads);
+    let tokens_arc = Arc::clone(&state.download_tokens);
     let id_clone = id.clone();
     let filename_clone = filename.clone();
 
     tokio::spawn(async move {
-        match do_download(&url, &dest_file, &downloads_arc, &id_clone).await {
+        match do_download(&url, &dest_file, &downloads_arc, &id_clone, token, resume_offset).await {
             Ok(_) => {
                 if let Ok(mut dl) = downloads_arc.lock() {
                     if let Some(p) = dl.get_mut(&id_clone) {
@@ -66,14 +89,31 @@ pub async fn download_model(
                 println!("[Download] Complete: {}", filename_clone);
             }
             Err(e) => {
-                if let Ok(mut dl) = downloads_arc.lock() {
-                    if let Some(p) = dl.get_mut(&id_clone) {
-                        p.status = "error".to_string();
-                        p.error = Some(e.clone());
+                if e == "paused" {
+                    println!("[Download] Paused: {}", filename_clone);
+                    // Status already set to "paused" in do_download
+                } else if e == "cancelled" {
+                    // Clean up temp file
+                    let tmp = dest_file.with_extension("download");
+                    let _ = std::fs::remove_file(&tmp);
+                    if let Ok(mut dl) = downloads_arc.lock() {
+                        dl.remove(&id_clone);
                     }
+                    println!("[Download] Cancelled: {}", filename_clone);
+                } else {
+                    if let Ok(mut dl) = downloads_arc.lock() {
+                        if let Some(p) = dl.get_mut(&id_clone) {
+                            p.status = "error".to_string();
+                            p.error = Some(e.clone());
+                        }
+                    }
+                    println!("[Download] Failed: {} - {}", filename_clone, e);
                 }
-                println!("[Download] Failed: {} - {}", filename_clone, e);
             }
+        }
+        // Clean up token
+        if let Ok(mut tokens) = tokens_arc.lock() {
+            tokens.remove(&id_clone);
         }
     });
 
@@ -85,24 +125,41 @@ async fn do_download(
     dest: &PathBuf,
     downloads: &Arc<Mutex<HashMap<String, DownloadProgress>>>,
     id: &str,
+    token: CancellationToken,
+    resume_offset: u64,
 ) -> Result<(), String> {
     let client = reqwest::Client::builder()
         .user_agent("LocallyUncensored/1.5")
         .redirect(reqwest::redirect::Policy::limited(10))
-        .timeout(std::time::Duration::from_secs(7200)) // 2 hours for large models
+        .timeout(std::time::Duration::from_secs(7200))
         .build()
         .map_err(|e| e.to_string())?;
 
-    let response = client.get(url)
+    let mut request = client.get(url);
+
+    // Resume support: request only remaining bytes
+    if resume_offset > 0 {
+        request = request.header("Range", format!("bytes={}-", resume_offset));
+        println!("[Download] Resuming from byte {}", resume_offset);
+    }
+
+    let response = request
         .send()
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
 
-    if !response.status().is_success() {
-        return Err(format!("HTTP {}", response.status()));
+    let status = response.status();
+    if !status.is_success() && status.as_u16() != 206 {
+        return Err(format!("HTTP {}", status));
     }
 
-    let total = response.content_length().unwrap_or(0);
+    // For resumed downloads, total = content_length + offset
+    let content_length = response.content_length().unwrap_or(0);
+    let total = if resume_offset > 0 && status.as_u16() == 206 {
+        content_length + resume_offset
+    } else {
+        content_length
+    };
 
     // Update total size
     if let Ok(mut dl) = downloads.lock() {
@@ -113,31 +170,83 @@ async fn do_download(
     }
 
     let tmp_path = dest.with_extension("download");
-    let mut file = tokio::fs::File::create(&tmp_path)
-        .await
-        .map_err(|e| format!("Create file: {}", e))?;
+
+    // Open file for writing (append if resuming)
+    let mut file = if resume_offset > 0 && status.as_u16() == 206 {
+        tokio::fs::OpenOptions::new()
+            .append(true)
+            .open(&tmp_path)
+            .await
+            .map_err(|e| format!("Open file for resume: {}", e))?
+    } else {
+        tokio::fs::File::create(&tmp_path)
+            .await
+            .map_err(|e| format!("Create file: {}", e))?
+    };
 
     let mut stream = response.bytes_stream();
-    let mut downloaded: u64 = 0;
+    let mut downloaded: u64 = resume_offset;
     let start = Instant::now();
     let mut last_update = Instant::now();
 
     use tokio::io::AsyncWriteExt;
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| format!("Stream error: {}", e))?;
-        file.write_all(&chunk).await.map_err(|e| format!("Write: {}", e))?;
-        downloaded += chunk.len() as u64;
 
-        // Update progress every 500ms
-        if last_update.elapsed().as_millis() > 500 {
-            last_update = Instant::now();
-            let elapsed = start.elapsed().as_secs_f64();
-            let speed = if elapsed > 0.0 { downloaded as f64 / elapsed } else { 0.0 };
+    loop {
+        tokio::select! {
+            _ = token.cancelled() => {
+                file.flush().await.ok();
+                drop(file);
 
-            if let Ok(mut dl) = downloads.lock() {
-                if let Some(p) = dl.get_mut(id) {
-                    p.progress = downloaded;
-                    p.speed = speed;
+                // Check if this is a pause or cancel
+                let is_paused = if let Ok(dl) = downloads.lock() {
+                    dl.get(id).map(|p| p.status == "pausing").unwrap_or(false)
+                } else {
+                    false
+                };
+
+                if is_paused {
+                    if let Ok(mut dl) = downloads.lock() {
+                        if let Some(p) = dl.get_mut(id) {
+                            p.status = "paused".to_string();
+                            p.progress = downloaded;
+                        }
+                    }
+                    return Err("paused".to_string());
+                } else {
+                    return Err("cancelled".to_string());
+                }
+            }
+            chunk = stream.next() => {
+                match chunk {
+                    Some(Ok(bytes)) => {
+                        file.write_all(&bytes).await.map_err(|e| format!("Write: {}", e))?;
+                        downloaded += bytes.len() as u64;
+
+                        // Update progress every 500ms
+                        if last_update.elapsed().as_millis() > 500 {
+                            last_update = Instant::now();
+                            let elapsed = start.elapsed().as_secs_f64();
+                            let speed = if elapsed > 0.0 {
+                                (downloaded - resume_offset) as f64 / elapsed
+                            } else {
+                                0.0
+                            };
+
+                            if let Ok(mut dl) = downloads.lock() {
+                                if let Some(p) = dl.get_mut(id) {
+                                    p.progress = downloaded;
+                                    p.speed = speed;
+                                }
+                            }
+                        }
+                    }
+                    Some(Err(e)) => {
+                        return Err(format!("Stream error: {}", e));
+                    }
+                    None => {
+                        // Stream complete
+                        break;
+                    }
                 }
             }
         }
@@ -160,6 +269,154 @@ async fn do_download(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn pause_download(id: String, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    // Set status to "pausing" so the download loop knows it's a pause, not cancel
+    if let Ok(mut dl) = state.downloads.lock() {
+        if let Some(p) = dl.get_mut(&id) {
+            if p.status != "downloading" && p.status != "connecting" {
+                return Ok(serde_json::json!({"status": "not_active"}));
+            }
+            p.status = "pausing".to_string();
+        }
+    }
+
+    // Cancel the token (the download loop checks for "pausing" status to distinguish pause from cancel)
+    if let Ok(tokens) = state.download_tokens.lock() {
+        if let Some(token) = tokens.get(&id) {
+            token.cancel();
+        }
+    }
+
+    Ok(serde_json::json!({"status": "pausing"}))
+}
+
+#[tauri::command]
+pub fn cancel_download(id: String, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    // Cancel the token
+    if let Ok(tokens) = state.download_tokens.lock() {
+        if let Some(token) = tokens.get(&id) {
+            token.cancel();
+        }
+    }
+
+    // If paused (no active token), clean up directly
+    let was_paused = if let Ok(dl) = state.downloads.lock() {
+        dl.get(&id).map(|p| p.status == "paused").unwrap_or(false)
+    } else {
+        false
+    };
+
+    if was_paused {
+        // Remove from progress
+        if let Ok(mut dl) = state.downloads.lock() {
+            dl.remove(&id);
+        }
+        // Delete temp file — need comfy_path to find it
+        // The temp file cleanup is best-effort
+        if let Ok(comfy_path) = state.comfy_path.lock() {
+            if let Some(ref path) = *comfy_path {
+                // Try common subfolders
+                for subfolder in &["diffusion_models", "checkpoints", "vae", "text_encoders", "loras"] {
+                    let tmp = PathBuf::from(path).join("models").join(subfolder).join(&id).with_extension("download");
+                    let _ = std::fs::remove_file(&tmp);
+                }
+            }
+        }
+    }
+
+    Ok(serde_json::json!({"status": "cancelled"}))
+}
+
+#[tauri::command]
+pub async fn resume_download(
+    id: String,
+    url: String,
+    subfolder: String,
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let comfy_path = {
+        let p = state.comfy_path.lock().unwrap();
+        p.clone()
+    };
+
+    let dest_dir = models_dir(&comfy_path, &subfolder)?;
+    let dest_file = dest_dir.join(&id);
+    let tmp_path = dest_file.with_extension("download");
+
+    let resume_offset = if tmp_path.exists() {
+        tmp_path.metadata().map(|m| m.len()).unwrap_or(0)
+    } else {
+        0
+    };
+
+    // Create new cancellation token
+    let token = CancellationToken::new();
+    {
+        let mut tokens = state.download_tokens.lock().unwrap();
+        tokens.insert(id.clone(), token.clone());
+    }
+
+    // Update status
+    {
+        let mut downloads = state.downloads.lock().unwrap();
+        if let Some(p) = downloads.get_mut(&id) {
+            p.status = "connecting".to_string();
+        } else {
+            downloads.insert(id.clone(), DownloadProgress {
+                progress: resume_offset,
+                total: 0,
+                speed: 0.0,
+                filename: id.clone(),
+                status: "connecting".to_string(),
+                error: None,
+            });
+        }
+    }
+
+    let downloads_arc = Arc::clone(&state.downloads);
+    let tokens_arc = Arc::clone(&state.download_tokens);
+    let id_clone = id.clone();
+
+    tokio::spawn(async move {
+        match do_download(&url, &dest_file, &downloads_arc, &id_clone, token, resume_offset).await {
+            Ok(_) => {
+                if let Ok(mut dl) = downloads_arc.lock() {
+                    if let Some(p) = dl.get_mut(&id_clone) {
+                        p.status = "complete".to_string();
+                    }
+                }
+                println!("[Download] Complete: {}", id_clone);
+            }
+            Err(e) => {
+                if e == "paused" {
+                    println!("[Download] Paused: {}", id_clone);
+                } else if e == "cancelled" {
+                    let tmp = dest_file.with_extension("download");
+                    let _ = std::fs::remove_file(&tmp);
+                    if let Ok(mut dl) = downloads_arc.lock() {
+                        dl.remove(&id_clone);
+                    }
+                    println!("[Download] Cancelled: {}", id_clone);
+                } else {
+                    if let Ok(mut dl) = downloads_arc.lock() {
+                        if let Some(p) = dl.get_mut(&id_clone) {
+                            p.status = "error".to_string();
+                            p.error = Some(e.clone());
+                        }
+                    }
+                    println!("[Download] Failed: {} - {}", id_clone, e);
+                }
+            }
+        }
+        if let Ok(mut tokens) = tokens_arc.lock() {
+            tokens.remove(&id_clone);
+        }
+    });
+
+    Ok(serde_json::json!({"status": "resuming", "offset": resume_offset}))
 }
 
 #[tauri::command]

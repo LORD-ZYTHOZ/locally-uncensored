@@ -7,6 +7,7 @@ mod state;
 
 use state::AppState;
 use tauri::Manager;
+use tauri::WebviewWindowBuilder;
 
 fn main() {
     let app_state = AppState::new();
@@ -35,6 +36,9 @@ fn main() {
             // Downloads
             commands::download::download_model,
             commands::download::download_progress,
+            commands::download::pause_download,
+            commands::download::cancel_download,
+            commands::download::resume_download,
             // Web search
             commands::search::web_search,
             commands::search::search_status,
@@ -44,8 +48,15 @@ fn main() {
             commands::proxy::ollama_search,
             commands::proxy::fetch_external,
             commands::proxy::fetch_external_bytes,
+            commands::proxy::proxy_localhost,
+            commands::proxy::proxy_localhost_stream,
         ])
         .setup(|app| {
+            // Open DevTools for debugging
+            if let Some(window) = app.get_webview_window("main") {
+                window.open_devtools();
+            }
+
             let state = app.state::<AppState>();
 
             // Auto-start Ollama

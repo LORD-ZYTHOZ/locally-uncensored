@@ -1,6 +1,6 @@
 import { v4 as uuid } from "uuid"
 import type { DocumentMeta, TextChunk, RAGContext, VectorSearchResult } from "../types/rag"
-import { ollamaUrl } from "./backend"
+import { ollamaUrl, localFetch } from "./backend"
 
 export async function extractText(file: File): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase()
@@ -58,9 +58,8 @@ export async function generateEmbeddings(
   texts: string[],
   model = "nomic-embed-text"
 ): Promise<number[][]> {
-  const res = await fetch(ollamaUrl("/embed"), {
+  const res = await localFetch(ollamaUrl("/embed"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, input: texts }),
   })
   if (!res.ok) throw new Error("Embedding failed — is the model pulled?")

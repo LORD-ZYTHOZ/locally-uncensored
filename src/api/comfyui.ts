@@ -1,4 +1,4 @@
-import { comfyuiUrl } from "./backend"
+import { comfyuiUrl, localFetch } from "./backend"
 
 // ─── Types ───
 
@@ -61,7 +61,7 @@ function isVideoModelType(type: ModelType): boolean {
 
 export async function checkComfyConnection(): Promise<boolean> {
   try {
-    const res = await fetch(comfyuiUrl('/system_stats'), { signal: AbortSignal.timeout(5000) })
+    const res = await localFetch(comfyuiUrl('/system_stats'))
     return res.ok
   } catch {
     return false
@@ -71,7 +71,7 @@ export async function checkComfyConnection(): Promise<boolean> {
 // Check if a specific node exists in ComfyUI (lightweight, single node check)
 async function nodeExists(nodeName: string): Promise<boolean> {
   try {
-    const res = await fetch(comfyuiUrl(`/object_info/${nodeName}`), { signal: AbortSignal.timeout(3000) })
+    const res = await localFetch(comfyuiUrl(`/object_info/${nodeName}`))
     if (!res.ok) return false
     const data = await res.json()
     return !!(data && data[nodeName])
@@ -82,7 +82,7 @@ async function nodeExists(nodeName: string): Promise<boolean> {
 
 export async function getCheckpoints(): Promise<string[]> {
   try {
-    const res = await fetch(comfyuiUrl('/object_info/CheckpointLoaderSimple'))
+    const res = await localFetch(comfyuiUrl('/object_info/CheckpointLoaderSimple'))
     if (!res.ok) return []
     const data = await res.json()
     return data?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ?? []
@@ -94,7 +94,7 @@ export async function getCheckpoints(): Promise<string[]> {
 
 export async function getDiffusionModels(): Promise<string[]> {
   try {
-    const res = await fetch(comfyuiUrl('/object_info/UNETLoader'))
+    const res = await localFetch(comfyuiUrl('/object_info/UNETLoader'))
     if (!res.ok) return []
     const data = await res.json()
     return data?.UNETLoader?.input?.required?.unet_name?.[0] ?? []
@@ -106,7 +106,7 @@ export async function getDiffusionModels(): Promise<string[]> {
 
 export async function getVAEModels(): Promise<string[]> {
   try {
-    const res = await fetch(comfyuiUrl('/object_info/VAELoader'))
+    const res = await localFetch(comfyuiUrl('/object_info/VAELoader'))
     if (!res.ok) return []
     const data = await res.json()
     return data?.VAELoader?.input?.required?.vae_name?.[0] ?? []
@@ -118,7 +118,7 @@ export async function getVAEModels(): Promise<string[]> {
 
 export async function getCLIPModels(): Promise<string[]> {
   try {
-    const res = await fetch(comfyuiUrl('/object_info/CLIPLoader'))
+    const res = await localFetch(comfyuiUrl('/object_info/CLIPLoader'))
     if (!res.ok) return []
     const data = await res.json()
     return data?.CLIPLoader?.input?.required?.clip_name?.[0] ?? []
@@ -130,7 +130,7 @@ export async function getCLIPModels(): Promise<string[]> {
 
 export async function getSamplers(): Promise<string[]> {
   try {
-    const res = await fetch(comfyuiUrl('/object_info/KSampler'))
+    const res = await localFetch(comfyuiUrl('/object_info/KSampler'))
     if (!res.ok) throw new Error('Failed')
     const data = await res.json()
     return data?.KSampler?.input?.required?.sampler_name?.[0] ?? []
@@ -141,7 +141,7 @@ export async function getSamplers(): Promise<string[]> {
 
 export async function getSchedulers(): Promise<string[]> {
   try {
-    const res = await fetch(comfyuiUrl('/object_info/KSampler'))
+    const res = await localFetch(comfyuiUrl('/object_info/KSampler'))
     if (!res.ok) throw new Error('Failed')
     const data = await res.json()
     return data?.KSampler?.input?.required?.scheduler?.[0] ?? []
@@ -152,7 +152,7 @@ export async function getSchedulers(): Promise<string[]> {
 
 export async function getAnimateDiffModels(): Promise<string[]> {
   try {
-    const res = await fetch(comfyuiUrl('/object_info/ADE_LoadAnimateDiffModel'))
+    const res = await localFetch(comfyuiUrl('/object_info/ADE_LoadAnimateDiffModel'))
     if (!res.ok) return []
     const data = await res.json()
     return data?.ADE_LoadAnimateDiffModel?.input?.required?.model_name?.[0] ?? []
@@ -237,10 +237,19 @@ export async function findMatchingVAE(modelType: ModelType): Promise<string> {
     if (match) return match
     throw new Error(`No FLUX VAE found. Download "ae.safetensors" from the Model Manager (FLUX bundles include it).`)
   }
-  if (modelType === 'wan' || modelType === 'hunyuan') {
-    const match = vaes.find(v => lower(v).includes('wan') || lower(v).includes('hunyuan'))
+  if (modelType === 'hunyuan') {
+    // HunyuanVideo has its own VAE — prefer it, fall back to Wan VAE
+    const match = vaes.find(v => lower(v).includes('hunyuanvideo'))
+      || vaes.find(v => lower(v).includes('hunyuan'))
+      || vaes.find(v => lower(v).includes('wan'))
     if (match) return match
-    throw new Error(`No Wan/Hunyuan VAE found. Download "wan_2.1_vae.safetensors" from the Model Manager.`)
+    throw new Error(`No HunyuanVideo VAE found. Download "hunyuanvideo15_vae_fp16.safetensors" from the Model Manager.`)
+  }
+  if (modelType === 'wan') {
+    const match = vaes.find(v => lower(v).includes('wan'))
+      || vaes.find(v => lower(v).includes('hunyuan'))
+    if (match) return match
+    throw new Error(`No Wan VAE found. Download "wan_2.1_vae.safetensors" from the Model Manager.`)
   }
   // SDXL/SD1.5 checkpoints include VAE — any VAE works as fallback
   return vaes[0]
@@ -257,11 +266,19 @@ export async function findMatchingCLIP(modelType: ModelType): Promise<string> {
     if (match) return match
     throw new Error(`No FLUX text encoder (T5) found. Download "t5xxl_fp8_e4m3fn.safetensors" from the Model Manager.`)
   }
-  if (modelType === 'wan' || modelType === 'hunyuan') {
+  if (modelType === 'hunyuan') {
+    // HunyuanVideo 1.5 uses Qwen 2.5 VL, older versions use llava_llama3
+    const match = clips.find(c => lower(c).includes('qwen'))
+      || clips.find(c => lower(c).includes('llava'))
+      || clips.find(c => lower(c).includes('umt5'))
+    if (match) return match
+    throw new Error(`No HunyuanVideo text encoder found. Download "qwen_2.5_vl_7b_fp8_scaled.safetensors" from the Model Manager.`)
+  }
+  if (modelType === 'wan') {
     const match = clips.find(c => lower(c).includes('umt5') || lower(c).includes('wan'))
       || clips.find(c => lower(c).includes('t5'))
     if (match) return match
-    throw new Error(`No Wan/Hunyuan text encoder found. Download "umt5_xxl_fp8_e4m3fn_scaled.safetensors" from the Model Manager.`)
+    throw new Error(`No Wan text encoder found. Download "umt5_xxl_fp8_e4m3fn_scaled.safetensors" from the Model Manager.`)
   }
   // SDXL/SD1.5 checkpoints include CLIP — any works
   return clips[0]
@@ -276,9 +293,8 @@ async function findAnimateDiffModel(): Promise<string> {
 // ─── Workflow Submission ───
 
 export async function submitWorkflow(workflow: Record<string, any>): Promise<string> {
-  const res = await fetch(comfyuiUrl('/prompt'), {
+  const res = await localFetch(comfyuiUrl('/prompt'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: workflow }),
   })
   if (!res.ok) {
@@ -308,15 +324,14 @@ export async function submitWorkflow(workflow: Record<string, any>): Promise<str
 
 export async function cancelGeneration(): Promise<void> {
   try {
-    await fetch(comfyuiUrl('/interrupt'), { method: 'POST' })
+    await localFetch(comfyuiUrl('/interrupt'), { method: 'POST' })
   } catch { /* best effort */ }
 }
 
 export async function freeMemory(): Promise<void> {
   try {
-    await fetch(comfyuiUrl('/free'), {
+    await localFetch(comfyuiUrl('/free'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ unload_models: true, free_memory: true }),
     })
   } catch { /* best effort */ }
@@ -324,7 +339,7 @@ export async function freeMemory(): Promise<void> {
 
 export async function getHistory(promptId: string): Promise<any> {
   try {
-    const res = await fetch(comfyuiUrl(`/history/${promptId}`))
+    const res = await localFetch(comfyuiUrl(`/history/${promptId}`))
     if (!res.ok) return null
     const data = await res.json()
     return data[promptId] ?? null

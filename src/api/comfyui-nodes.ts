@@ -1,4 +1,4 @@
-import { comfyuiUrl } from './backend'
+import { comfyuiUrl, localFetch } from './backend'
 
 // ─── Types ───
 
@@ -48,7 +48,7 @@ export async function getAllNodeInfo(forceRefresh = false): Promise<Record<strin
     return nodeInfoCache
   }
 
-  const res = await fetch(comfyuiUrl('/object_info'), { signal: AbortSignal.timeout(10000) })
+  const res = await localFetch(comfyuiUrl('/object_info'))
   if (!res.ok) throw new Error(`Failed to fetch node info: ${res.status}`)
   const data = await res.json()
 

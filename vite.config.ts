@@ -423,13 +423,58 @@ function comfyLauncher(): Plugin {
         const downloads: Record<string, any> = {}
         for (const [id, info] of activeDownloads.entries()) {
           downloads[id] = info
-          // Clean up completed downloads after 30s
           if (info.status === 'complete' || info.status === 'error') {
             setTimeout(() => activeDownloads.delete(id), 30000)
           }
         }
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify(downloads))
+      })
+
+      // API: Pause download (dev mode stub — sets status to paused)
+      server.middlewares.use('/local-api/pause-download', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          const { id } = JSON.parse(body)
+          const dl = activeDownloads.get(id)
+          if (dl) dl.status = 'paused'
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'paused' }))
+        })
+      })
+
+      // API: Cancel download (dev mode stub — removes from map)
+      server.middlewares.use('/local-api/cancel-download', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          const { id } = JSON.parse(body)
+          activeDownloads.delete(id)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'cancelled' }))
+        })
+      })
+
+      // API: Resume download (dev mode stub — restarts download)
+      server.middlewares.use('/local-api/resume-download', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          const { id, url, subfolder } = JSON.parse(body)
+          if (url && subfolder) {
+            const comfyPath = findComfyUI()
+            if (comfyPath) {
+              const destPath = join(comfyPath, 'models', subfolder, id)
+              downloadFile(url, destPath, id).catch(err => console.error(`[Download] Resume failed: ${err.message}`))
+            }
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'resuming' }))
+        })
       })
 
       // API: Set ComfyUI path (writes to .env and starts ComfyUI)

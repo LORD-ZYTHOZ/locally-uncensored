@@ -1,5 +1,5 @@
 import type { Tool, ToolName, ToolCall, AgentLogEntry } from "../types/agents";
-import { backendCall, ollamaUrl } from "./backend";
+import { backendCall, ollamaUrl, localFetch } from "./backend";
 
 export const AGENT_TOOLS: Tool[] = [
   {
@@ -337,9 +337,8 @@ export async function chatNonStreaming(
   model: string,
   messages: { role: string; content: string }[]
 ): Promise<string> {
-  const res = await fetch(ollamaUrl("/chat"), {
+  const res = await localFetch(ollamaUrl("/chat"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
       messages,

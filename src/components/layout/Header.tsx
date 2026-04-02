@@ -61,11 +61,10 @@ export function Header() {
         </button>
         <button
           onClick={() => setView('agents')}
-          className={`relative p-2 rounded-lg transition-colors ${currentView === 'agents' ? 'bg-green-100 dark:bg-green-500/15 text-green-600 dark:text-green-300' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
-          title="AI Agents (Work in Progress)"
+          className={`p-2 rounded-lg transition-colors ${currentView === 'agents' ? 'bg-green-100 dark:bg-green-500/15 text-green-600 dark:text-green-300' : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+          title="AI Agents"
         >
           <Bot size={18} />
-          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400" title="Work in Progress" />
         </button>
         <button
           onClick={() => setView('models')}
