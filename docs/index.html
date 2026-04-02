@@ -103,6 +103,16 @@ section{max-width:1080px;margin:0 auto;padding:0 24px}
 .showcase-card-label{padding:16px;font-size:13px;color:var(--text-secondary);font-weight:500}
 
 /* Compare */
+.agent-section{padding:80px 0}
+.agent-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;max-width:900px;margin:3rem auto 2rem}
+.agent-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;text-align:left;transition:border-color .2s}
+.agent-card:hover{border-color:var(--accent)}
+.agent-icon{font-size:1.8rem;margin-bottom:.8rem}
+.agent-card h3{font-size:1rem;margin-bottom:.5rem;color:var(--text)}
+.agent-card p{font-size:.85rem;color:var(--text-secondary);line-height:1.5}
+.agent-highlight{max-width:700px;margin:0 auto;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);border-radius:var(--radius);padding:1.2rem 1.5rem;text-align:center;font-size:.9rem;color:var(--text-secondary);line-height:1.6}
+.agent-highlight strong{color:var(--accent)}
+@media(max-width:768px){.agent-grid{grid-template-columns:1fr}}
 .compare{padding:80px 0}
 .compare-table{width:100%;border-collapse:collapse;font-size:14px}
 .compare-table th{text-align:left;padding:12px 16px;font-weight:600;font-size:13px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border)}
@@ -177,6 +187,7 @@ footer a:hover{color:var(--text)}
     </a>
     <div class="nav-links">
       <a href="#features">Features</a>
+      <a href="#agent-mode">Agent Mode</a>
       <a href="#compare">Compare</a>
       <a href="#models">Models</a>
       <a href="#faq">FAQ</a>
@@ -318,10 +329,53 @@ footer a:hover{color:var(--text)}
   </div>
 </section>
 
+<section class="agent-section reveal" id="agent-mode">
+  <div class="section-label">New in v1.9</div>
+  <h2 class="section-heading">Agent Mode. Local AI that actually does things.</h2>
+  <div class="section-desc">Your AI doesn't just chat — it searches the web, reads files, writes code, and generates images. All running on your hardware, with models that don't refuse.</div>
+
+  <div class="agent-grid">
+    <div class="agent-card">
+      <div class="agent-icon">🔍</div>
+      <h3>Web Search & Fetch</h3>
+      <p>Two-phase search: find URLs, then fetch and read actual page content. Real answers, not hallucinations.</p>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">💻</div>
+      <h3>Code Execution</h3>
+      <p>Write and run Python code locally. Data analysis, file processing, automation — your AI does the work.</p>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">📁</div>
+      <h3>File I/O</h3>
+      <p>Read and write files on your system. Summarize documents, create reports, process data.</p>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">🎨</div>
+      <h3>Image Generation</h3>
+      <p>Generate images mid-conversation via ComfyUI. The only local agent that can create visuals on command.</p>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">🧠</div>
+      <h3>Memory System</h3>
+      <p>Auto-saves tool results. Search past results by keyword, filter by category, export as markdown.</p>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">🔒</div>
+      <h3>Tool Approval</h3>
+      <p>Safe tools auto-execute. File writes and code execution ask permission first. You stay in control.</p>
+    </div>
+  </div>
+
+  <div class="agent-highlight">
+    <p><strong>Works with abliterated models.</strong> LU auto-fixes tool-calling templates via Ollama Modelfile. Models that other apps refuse to load work out of the box — with full agent capabilities.</p>
+  </div>
+</section>
+
 <section class="compare reveal" id="compare">
   <div class="section-label">Comparison</div>
   <h2 class="section-heading">What others don't do.</h2>
-  <div class="section-desc">Every competitor handles chat. None of them combine uncensored chat, image generation, and video creation in one app.</div>
+  <div class="section-desc">Every competitor handles chat. None combine agents, uncensored chat, image generation, and video creation in one local app.</div>
 
   <table class="compare-table">
     <thead>
@@ -344,7 +398,9 @@ footer a:hover{color:var(--text)}
       <tr><td>No Docker Required</td><td class="check">Yes</td><td class="cross">No</td><td class="check">Yes</td><td class="check">Yes</td></tr>
       <tr><td>Document Chat (RAG)</td><td class="check hl">Yes</td><td class="check">Yes</td><td class="cross">No</td><td class="cross">No</td></tr>
       <tr><td>Voice (STT + TTS)</td><td class="check hl">Yes</td><td class="check">Partial</td><td class="cross">No</td><td class="cross">No</td></tr>
-      <tr><td>AI Agents</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
+      <tr><td>AI Agents + Tool Calling</td><td class="check hl">6 Tools</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
+      <tr><td>Agent Memory System</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
+      <tr><td>Abliterated Model Support</td><td class="check hl">Auto-fix</td><td class="cross">No</td><td class="cross">No</td><td class="check">Partial</td></tr>
     </tbody>
   </table>
 </section>
