@@ -372,10 +372,12 @@ async function findAnimateDiffModel(): Promise<string> {
 
 // ─── Workflow Submission ───
 
-export async function submitWorkflow(workflow: Record<string, any>): Promise<string> {
+export async function submitWorkflow(workflow: Record<string, any>, clientId?: string): Promise<string> {
+  const payload: Record<string, any> = { prompt: workflow }
+  if (clientId) payload.client_id = clientId
   const res = await localFetch(comfyuiUrl('/prompt'), {
     method: 'POST',
-    body: JSON.stringify({ prompt: workflow }),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     const rawText = await res.text().catch(() => '')

@@ -5,6 +5,8 @@ import { classifyModel } from '../api/comfyui'
 import type { PreflightError } from '../api/preflight'
 // ModelType includes: flux, flux2, sdxl, sd15, wan, hunyuan, unknown
 
+export type ProgressPhase = 'idle' | 'queued' | 'loading-model' | 'loading-clip' | 'loading-vae' | 'sampling' | 'decoding' | 'complete'
+
 // ─── Optimal defaults per model type (research-backed: Draw Things, Fooocus, ComfyUI) ───
 
 export const MODEL_TYPE_DEFAULTS: Record<ModelType, {
@@ -64,6 +66,7 @@ interface CreateState {
   isGenerating: boolean
   progress: number
   progressText: string
+  progressPhase: ProgressPhase
   currentPromptId: string | null
   error: string | null
   lastGenTime: string | null
@@ -90,6 +93,7 @@ interface CreateState {
   setFps: (fps: number) => void
   setIsGenerating: (generating: boolean) => void
   setProgress: (progress: number, text?: string) => void
+  setProgressPhase: (phase: ProgressPhase) => void
   setCurrentPromptId: (id: string | null) => void
   setError: (error: string | null) => void
   setLastGenTime: (time: string | null) => void
@@ -121,6 +125,7 @@ export const useCreateStore = create<CreateState>()(
       isGenerating: false,
       progress: 0,
       progressText: '',
+      progressPhase: 'idle' as ProgressPhase,
       currentPromptId: null,
       error: null,
       lastGenTime: null,
@@ -167,8 +172,9 @@ export const useCreateStore = create<CreateState>()(
       setBatchSize: (batchSize) => set({ batchSize: Math.max(1, Math.min(8, Math.floor(batchSize))) }),
       setFrames: (frames) => set({ frames: Math.max(1, Math.min(120, Math.floor(frames))) }),
       setFps: (fps) => set({ fps: Math.max(1, Math.min(60, Math.floor(fps))) }),
-      setIsGenerating: (generating) => set({ isGenerating: generating }),
+      setIsGenerating: (generating) => set({ isGenerating: generating, ...(generating ? {} : { progressPhase: 'idle' as ProgressPhase }) }),
       setProgress: (progress, text) => set({ progress, progressText: text ?? '' }),
+      setProgressPhase: (phase) => set({ progressPhase: phase }),
       setCurrentPromptId: (id) => set({ currentPromptId: id }),
       setError: (error) => set({ error }),
       setLastGenTime: (time) => set({ lastGenTime: time }),

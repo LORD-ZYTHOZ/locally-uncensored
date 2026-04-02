@@ -3,6 +3,7 @@ import { User, Bot, Copy, Check } from 'lucide-react'
 import { useState } from 'react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { ThinkingBlock } from './ThinkingBlock'
+import { ToolCallBlock } from './ToolCallBlock'
 import { SpeakerButton } from './SpeakerButton'
 import type { Message } from '../../types/chat'
 
@@ -42,6 +43,17 @@ export function MessageBubble({ message }: Props) {
         {/* Thinking block (collapsible, lighter blue, italic, smaller) */}
         {!isUser && message.thinking && (
           <ThinkingBlock thinking={message.thinking} />
+        )}
+
+        {/* Agent Mode: Tool call blocks */}
+        {!isUser && message.agentBlocks && message.agentBlocks.length > 0 && (
+          <>
+            {message.agentBlocks
+              .filter((b) => b.phase === 'tool_call' && b.toolCall)
+              .map((block) => (
+                <ToolCallBlock key={block.id} toolCall={block.toolCall!} />
+              ))}
+          </>
         )}
 
         {/* Main answer bubble */}

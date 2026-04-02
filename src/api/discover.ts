@@ -12,6 +12,9 @@ export interface DiscoverModel {
   filename?: string
   subfolder?: string  // ComfyUI models subfolder: checkpoints, diffusion_models, vae, text_encoders
   sizeGB?: number
+  // Discovery flags
+  hot?: boolean       // Featured/trending model
+  agent?: boolean     // Supports Agent Mode tool calling
 }
 
 export interface DownloadProgress {
@@ -125,8 +128,18 @@ export const COMPONENT_REGISTRY: Record<ModelType, ComponentRequirements> = {
 
 // ─── Ollama Text Models ───
 
+/** Get featured HOT models (always shown at top of discover) */
+export function getHotTextModels(): DiscoverModel[] {
+  return getCuratedTextModels().filter(m => m.hot)
+}
+
 export async function fetchAbliteratedModels(): Promise<DiscoverModel[]> {
-  return searchOllamaModels('abliterated')
+  const hotModels = getHotTextModels()
+  const searchResults = await searchOllamaModels('abliterated')
+  // Merge: HOT first, then search results (deduplicated)
+  const hotNames = new Set(hotModels.map(m => m.name))
+  const deduped = searchResults.filter(m => !hotNames.has(m.name))
+  return [...hotModels, ...deduped]
 }
 
 /** Search Ollama registry — works in both Tauri and dev mode */
@@ -194,9 +207,15 @@ function parseOllamaSearchHTML(html: string): DiscoverModel[] {
 
 function getCuratedTextModels(): DiscoverModel[] {
   return [
+    // ── HOT: Agent Mode + Uncensored ──
+    { name: 'hermes3', description: 'NousResearch Hermes 3 — uncensored + native tool calling. THE agent model.', pulls: '500K+', tags: ['3B', '8B', '70B', '405B'], updated: 'Hot', hot: true, agent: true },
+    { name: 'dolphin3', description: 'Dolphin 3 — uncensored from training. Coding, math, general purpose.', pulls: '3.7M', tags: ['8B'], updated: 'Hot', hot: true },
+    { name: 'huihui_ai/qwen3.5-abliterated', description: 'Qwen 3.5 abliterated — newest, strongest reasoning + coding.', pulls: '10K+', tags: ['8B', '14B', '32B'], updated: 'Hot', hot: true },
+    // ── Popular Uncensored ──
     { name: 'huihui_ai/qwen3-abliterated', description: 'Qwen3 abliterated — best overall. Exceptional reasoning, coding, multilingual.', pulls: '30K+', tags: ['8B', '30B'], updated: 'Popular' },
     { name: 'mannix/llama3.1-8b-abliterated', description: 'Llama 3.1 8B — fast, reliable, great entry point.', pulls: '200K+', tags: ['8B', 'Q5_K_M'], updated: 'Popular' },
     { name: 'huihui_ai/deepseek-r1-abliterated', description: 'DeepSeek R1 — chain-of-thought reasoning. Scales to your hardware.', pulls: '40K+', tags: ['8B', '14B', '32B', '70B'], updated: 'Popular' },
+    { name: 'huihui_ai/gpt-oss-abliterated', description: 'OpenAI GPT-OSS — abliterated open-source GPT model.', pulls: '15K+', tags: ['8B', '32B'], updated: 'Hot', hot: true },
     { name: 'huihui_ai/glm4.6-abliterated', description: 'GLM 4.6 abliterated — newest model, strong coding and reasoning.', pulls: '5K+', tags: ['9B'], updated: 'New' },
     { name: 'huihui_ai/gemma3-abliterated', description: 'Google Gemma 3 — vision support, great quality.', pulls: '20K+', tags: ['4B', '12B', '27B'], updated: 'Popular' },
     { name: 'richardyoung/qwen3-14b-abliterated', description: 'Qwen3 14B — sweet spot of speed and intelligence.', pulls: '4K+', tags: ['14B', 'Q4_K_M'], updated: 'Recent' },
@@ -252,6 +271,7 @@ export function getImageBundles(): ModelBundle[] {
       name: 'FLUX.1 [schnell] FP8 (Fast & Modern)',
       description: 'State-of-the-art image gen. 1-4 steps for fast results. Complete package with all required encoders.',
       tags: ['FLUX', 'Fast', 'FP8', '1024px'],
+      hot: true,
       totalSizeGB: 16,
       vramRequired: '8-10 GB',
       workflow: 'wan',
@@ -330,6 +350,7 @@ export function getImageBundles(): ModelBundle[] {
       name: 'FLUX 2 Klein 4B (Next-Gen)',
       description: 'Latest FLUX architecture. Fastest FLUX model with stunning quality. Includes Qwen 3 text encoder.',
       tags: ['FLUX 2', 'Fast', '1024px'],
+      hot: true,
       totalSizeGB: 8,
       vramRequired: '8-10 GB',
       workflow: 'wan',
@@ -387,6 +408,7 @@ export interface ModelBundle {
   workflow: 'wan' | 'hunyuan' | 'animatediff'
   files: DiscoverModel[]
   url?: string
+  hot?: boolean
 }
 
 export function getVideoBundles(): ModelBundle[] {
@@ -395,6 +417,7 @@ export function getVideoBundles(): ModelBundle[] {
       name: 'Wan 2.1 — 1.3B (Lightweight)',
       description: 'Best for 8-10 GB VRAM GPUs. Generates 480p video. Fast and lightweight.',
       tags: ['Wan 2.1', '480p', 'Fast'],
+      hot: true,
       totalSizeGB: 7.6,
       vramRequired: '8-10 GB',
       workflow: 'wan',

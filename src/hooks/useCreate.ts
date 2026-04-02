@@ -17,6 +17,11 @@ import {
   type ComfyUIOutput,
   type VideoBackend,
 } from '../api/comfyui'
+import {
+  comfyWS, CLIENT_ID,
+  LOADER_NODES, CLIP_LOADER_NODES, VAE_LOADER_NODES, SAMPLER_NODES, DECODE_NODES,
+  type ComfyWSEvent,
+} from '../api/comfyui-ws'
 import { buildDynamicWorkflow } from '../api/dynamic-workflow'
 import { getAllNodeInfo } from '../api/comfyui-nodes'
 import { useCreateStore, type GalleryItem } from '../stores/createStore'
@@ -202,7 +207,7 @@ export function useCreate() {
       setProgress(10, 'Submitting to ComfyUI...')
       let promptId: string
       try {
-        promptId = await submitWorkflow(workflow)
+        promptId = await submitWorkflow(workflow, CLIENT_ID)
       } catch (err) {
         setError(`Failed to submit: ${err instanceof Error ? err.message : String(err)}`)
         setIsGenerating(false)
@@ -211,113 +216,240 @@ export function useCreate() {
       setCurrentPromptId(promptId)
       addToPromptHistory(prompt)
 
-      // Poll for completion — video gets 60min timeout, image 20min
+      // Build node ID → class_type map from workflow for phase detection
+      const nodeClassMap = new Map<string, string>()
+      for (const [nodeId, node] of Object.entries(workflow)) {
+        if (node && typeof node === 'object' && 'class_type' in node) {
+          nodeClassMap.set(nodeId, (node as any).class_type)
+        }
+      }
+
+      // Try WebSocket-driven progress, fall back to polling
       const maxTime = mode === 'video' ? 60 * 60 * 1000 : 20 * 60 * 1000
-      await new Promise<void>((resolve, reject) => {
-        let attempts = 0
-        let comfyCheckCounter = 0
-        const startTime = Date.now()
+      let useWS = false
+      try {
+        await comfyWS.connect(3000)
+        useWS = true
+      } catch {
+        console.warn('[useCreate] WebSocket unavailable, using polling fallback')
+      }
 
-        pollRef.current = setInterval(async () => {
-          if (abortRef.current?.signal.aborted) {
-            if (pollRef.current) clearInterval(pollRef.current)
-            reject(new Error('Cancelled'))
-            return
-          }
+      if (useWS) {
+        // ── WebSocket-driven progress ──
+        await new Promise<void>((resolve, reject) => {
+          const startTime = Date.now()
+          const store = useCreateStore.getState()
+          store.setProgressPhase('queued')
+          setProgress(10, 'Queued...')
 
-          const elapsed = Date.now() - startTime
-          if (elapsed > maxTime) {
-            if (pollRef.current) clearInterval(pollRef.current)
+          const timeoutTimer = setTimeout(() => {
+            cleanup()
             reject(new Error(`Generation timed out after ${Math.round(maxTime / 60000)} minutes`))
-            return
+          }, maxTime)
+
+          // Heartbeat: check ComfyUI every 30s
+          const heartbeat = setInterval(async () => {
+            const alive = await checkComfyConnection()
+            if (!alive) { cleanup(); reject(new Error('ComfyUI stopped responding during generation')) }
+          }, 30000)
+
+          let abortCheck: ReturnType<typeof setInterval> | null = null
+
+          const cleanup = () => {
+            clearTimeout(timeoutTimer)
+            clearInterval(heartbeat)
+            if (abortCheck) clearInterval(abortCheck)
+            removeListener()
           }
 
-          attempts++
-          comfyCheckCounter++
+          const removeListener = comfyWS.on((event: ComfyWSEvent) => {
+            // Only handle events for our prompt
+            if ('prompt_id' in event.data && event.data.prompt_id !== promptId) return
 
-          // Heartbeat: every 30 polls, check if ComfyUI is still alive
-          if (comfyCheckCounter >= 30) {
-            comfyCheckCounter = 0
-            const alive = await checkComfyConnection()
-            if (!alive) {
+            const elapsed = Math.round((Date.now() - startTime) / 1000)
+            const st = useCreateStore.getState()
+
+            switch (event.type) {
+              case 'executing': {
+                const nodeId = event.data.node
+                if (nodeId === null) {
+                  // null node means execution finished for this prompt
+                  break
+                }
+                const classType = nodeClassMap.get(nodeId) || ''
+                if (LOADER_NODES.has(classType)) {
+                  st.setProgressPhase('loading-model')
+                  setProgress(15, `Loading model... ${elapsed}s`)
+                } else if (CLIP_LOADER_NODES.has(classType)) {
+                  st.setProgressPhase('loading-clip')
+                  setProgress(25, `Loading text encoder... ${elapsed}s`)
+                } else if (VAE_LOADER_NODES.has(classType)) {
+                  st.setProgressPhase('loading-vae')
+                  setProgress(30, `Loading VAE... ${elapsed}s`)
+                } else if (SAMPLER_NODES.has(classType)) {
+                  st.setProgressPhase('sampling')
+                  setProgress(35, `Sampling... ${elapsed}s`)
+                } else if (DECODE_NODES.has(classType)) {
+                  st.setProgressPhase('decoding')
+                  setProgress(90, `Decoding... ${elapsed}s`)
+                }
+                break
+              }
+              case 'progress': {
+                const { value, max } = event.data
+                const stepPct = 35 + (value / max) * 55 // 35% to 90%
+                st.setProgressPhase('sampling')
+                setProgress(Math.round(stepPct), `Sampling step ${value}/${max}... ${elapsed}s`)
+                break
+              }
+              case 'execution_complete': {
+                cleanup()
+                st.setProgressPhase('complete')
+                setProgress(95, 'Fetching results...')
+                // Fetch history to get output files
+                getHistory(promptId).then(history => {
+                  if (!history) { setError('No history found after completion.'); resolve(); return }
+                  const messages: [string, any][] = history.status?.messages ?? []
+                  const startMsg = messages.find(([t]) => t === 'execution_start')
+                  const endMsg = messages.find(([t]) => t === 'execution_success')
+                  const comfyTime = startMsg?.[1]?.timestamp && endMsg?.[1]?.timestamp
+                    ? ((endMsg[1].timestamp - startMsg[1].timestamp) / 1000).toFixed(1) : null
+                  setProgress(100, 'Complete!')
+                  useCreateStore.getState().setLastGenTime(comfyTime ? `${comfyTime}s` : null)
+                  const outputs = history.outputs ?? {}
+                  let found = false
+                  for (const nodeId of Object.keys(outputs)) {
+                    const nodeOutput = outputs[nodeId]
+                    const files: ComfyUIOutput[] = [
+                      ...(nodeOutput.images ?? []), ...(nodeOutput.gifs ?? []), ...(nodeOutput.videos ?? []),
+                    ]
+                    for (const file of files) {
+                      found = true
+                      addToGallery({
+                        id: uuid(), type: mode,
+                        filename: file.filename, subfolder: file.subfolder ?? '',
+                        prompt, negativePrompt, model: activeModel,
+                        modelType: mode === 'image' ? imageModelType : (videoModelsList.find(m => m.name === activeModel)?.type ?? 'wan'),
+                        seed: seed === -1 ? 0 : seed,
+                        steps, cfgScale, sampler, scheduler, width, height, batchSize,
+                        createdAt: Date.now(), builderUsed,
+                      })
+                    }
+                  }
+                  if (!found) setError('Generation completed but no output was produced. Check ComfyUI logs.')
+                  resolve()
+                }).catch(() => { resolve() })
+                break
+              }
+              case 'execution_error': {
+                cleanup()
+                const msg = event.data.exception_message || 'Unknown ComfyUI error'
+                const nodeType = event.data.node_type ? ` (${event.data.node_type})` : ''
+                reject(new Error(msg.trim() + nodeType))
+                break
+              }
+            }
+          })
+
+          // Also check abort
+          abortCheck = setInterval(() => {
+            if (abortRef.current?.signal.aborted) {
+              cleanup()
+              reject(new Error('Cancelled'))
+            }
+          }, 500)
+        })
+      } else {
+        // ── Polling fallback (original approach) ──
+        await new Promise<void>((resolve, reject) => {
+          let attempts = 0
+          let comfyCheckCounter = 0
+          const startTime = Date.now()
+
+          pollRef.current = setInterval(async () => {
+            if (abortRef.current?.signal.aborted) {
               if (pollRef.current) clearInterval(pollRef.current)
-              reject(new Error('ComfyUI stopped responding during generation'))
+              reject(new Error('Cancelled'))
               return
             }
-          }
 
-          const elapsedSec = Math.round(elapsed / 1000)
-          // Video progress: slower, more conservative estimate
-          const expectedSteps = mode === 'video' ? steps * frames * 0.5 : steps * 2
-          const pct = Math.min(10 + (attempts / expectedSteps * 85), 95)
-
-          try {
-            const history = await getHistory(promptId)
-
-            // Always update elapsed time
-            setProgress(pct, `Generating... ${elapsedSec}s elapsed`)
-
-            if (!history) return
-
-            if (history.status?.completed) {
+            const elapsed = Date.now() - startTime
+            if (elapsed > maxTime) {
               if (pollRef.current) clearInterval(pollRef.current)
-              // Calculate real generation time from ComfyUI timestamps
-              const messages: [string, any][] = history.status?.messages ?? []
-              const startMsg = messages.find(([t]) => t === 'execution_start')
-              const endMsg = messages.find(([t]) => t === 'execution_success')
-              const comfyTime = startMsg?.[1]?.timestamp && endMsg?.[1]?.timestamp
-                ? ((endMsg[1].timestamp - startMsg[1].timestamp) / 1000).toFixed(1)
-                : null
-              setProgress(100, 'Complete!')
-              useCreateStore.getState().setLastGenTime(comfyTime ? `${comfyTime}s` : null)
-
-              const outputs = history.outputs ?? {}
-              let found = false
-              for (const nodeId of Object.keys(outputs)) {
-                const nodeOutput = outputs[nodeId]
-                const files: ComfyUIOutput[] = [
-                  ...(nodeOutput.images ?? []),
-                  ...(nodeOutput.gifs ?? []),
-                  ...(nodeOutput.videos ?? []),
-                ]
-                for (const file of files) {
-                  found = true
-                  const galleryItem: GalleryItem = {
-                    id: uuid(),
-                    type: mode,
-                    filename: file.filename,
-                    subfolder: file.subfolder ?? '',
-                    prompt, negativePrompt,
-                    model: activeModel,
-                    modelType: mode === 'image' ? imageModelType : (videoModelsList.find(m => m.name === activeModel)?.type ?? 'wan'),
-                    seed: seed === -1 ? 0 : seed,
-                    steps, cfgScale, sampler, scheduler, width, height,
-                    batchSize,
-                    createdAt: Date.now(),
-                    builderUsed,
-                  }
-                  addToGallery(galleryItem)
-                }
-              }
-              if (!found) setError('Generation completed but no output was produced. Check ComfyUI logs.')
-              resolve()
-            } else if (history.status?.status_str === 'error') {
-              if (pollRef.current) clearInterval(pollRef.current)
-              // Find the execution_error message which has the actual error details
-              const messages: [string, any][] = history.status?.messages ?? []
-              const errorEntry = messages.find(([t]) => t === 'execution_error')
-              const errMsg = errorEntry?.[1]?.exception_message
-                || errorEntry?.[1]?.message
-                || messages[messages.length - 1]?.[1]?.message
-                || 'Unknown ComfyUI error'
-              const nodeType = errorEntry?.[1]?.node_type ? ` (${errorEntry[1].node_type})` : ''
-              reject(new Error(errMsg.trim() + nodeType))
+              reject(new Error(`Generation timed out after ${Math.round(maxTime / 60000)} minutes`))
+              return
             }
-          } catch (err) {
-            console.warn('[useCreate] Poll error:', err)
-          }
-        }, 1000)
-      })
+
+            attempts++
+            comfyCheckCounter++
+
+            if (comfyCheckCounter >= 30) {
+              comfyCheckCounter = 0
+              const alive = await checkComfyConnection()
+              if (!alive) {
+                if (pollRef.current) clearInterval(pollRef.current)
+                reject(new Error('ComfyUI stopped responding during generation'))
+                return
+              }
+            }
+
+            const elapsedSec = Math.round(elapsed / 1000)
+            const expectedSteps = mode === 'video' ? steps * frames * 0.5 : steps * 2
+            const pct = Math.min(10 + (attempts / expectedSteps * 85), 95)
+
+            try {
+              const history = await getHistory(promptId)
+              setProgress(pct, `Generating... ${elapsedSec}s elapsed`)
+              if (!history) return
+
+              if (history.status?.completed) {
+                if (pollRef.current) clearInterval(pollRef.current)
+                const messages: [string, any][] = history.status?.messages ?? []
+                const startMsg = messages.find(([t]) => t === 'execution_start')
+                const endMsg = messages.find(([t]) => t === 'execution_success')
+                const comfyTime = startMsg?.[1]?.timestamp && endMsg?.[1]?.timestamp
+                  ? ((endMsg[1].timestamp - startMsg[1].timestamp) / 1000).toFixed(1) : null
+                setProgress(100, 'Complete!')
+                useCreateStore.getState().setLastGenTime(comfyTime ? `${comfyTime}s` : null)
+                const outputs = history.outputs ?? {}
+                let found = false
+                for (const nodeId of Object.keys(outputs)) {
+                  const nodeOutput = outputs[nodeId]
+                  const files: ComfyUIOutput[] = [
+                    ...(nodeOutput.images ?? []), ...(nodeOutput.gifs ?? []), ...(nodeOutput.videos ?? []),
+                  ]
+                  for (const file of files) {
+                    found = true
+                    addToGallery({
+                      id: uuid(), type: mode,
+                      filename: file.filename, subfolder: file.subfolder ?? '',
+                      prompt, negativePrompt, model: activeModel,
+                      modelType: mode === 'image' ? imageModelType : (videoModelsList.find(m => m.name === activeModel)?.type ?? 'wan'),
+                      seed: seed === -1 ? 0 : seed,
+                      steps, cfgScale, sampler, scheduler, width, height, batchSize,
+                      createdAt: Date.now(), builderUsed,
+                    })
+                  }
+                }
+                if (!found) setError('Generation completed but no output was produced. Check ComfyUI logs.')
+                resolve()
+              } else if (history.status?.status_str === 'error') {
+                if (pollRef.current) clearInterval(pollRef.current)
+                const messages: [string, any][] = history.status?.messages ?? []
+                const errorEntry = messages.find(([t]) => t === 'execution_error')
+                const errMsg = errorEntry?.[1]?.exception_message
+                  || errorEntry?.[1]?.message
+                  || messages[messages.length - 1]?.[1]?.message
+                  || 'Unknown ComfyUI error'
+                const nodeType = errorEntry?.[1]?.node_type ? ` (${errorEntry[1].node_type})` : ''
+                reject(new Error(errMsg.trim() + nodeType))
+              }
+            } catch (err) {
+              console.warn('[useCreate] Poll error:', err)
+            }
+          }, 1000)
+        })
+      }
     } catch (err) {
       if (err instanceof Error && err.message === 'Cancelled') {
         // User cancelled, not an error

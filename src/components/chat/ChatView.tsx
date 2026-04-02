@@ -1,105 +1,177 @@
 import { useState } from 'react'
-import { AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useChat } from '../../hooks/useChat'
 import { useChatStore } from '../../stores/chatStore'
 import { useModelStore } from '../../stores/modelStore'
 import { useRAGStore } from '../../stores/ragStore'
+import { useAgentModeStore } from '../../stores/agentModeStore'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
 import { RAGPanel } from './RAGPanel'
-import { PersonaPanel } from '../personas/PersonaPanel'
+import { AgentModeToggle } from './AgentModeToggle'
 import { ModelRecommendation } from '../models/ModelRecommendation'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
-import { Cpu, FileText } from 'lucide-react'
+import { useSettingsStore } from '../../stores/settingsStore'
+import { FEATURE_FLAGS } from '../../lib/constants'
+import { isAgentCompatible } from '../../lib/model-compatibility'
+import { FileText, Bot, User, ChevronDown } from 'lucide-react'
 
 export function ChatView() {
-  const { sendMessage, stopGeneration, isGenerating } = useChat()
+  const { sendMessage, stopGeneration, isGenerating, isLoadingModel, pendingApproval, approveToolCall, rejectToolCall } = useChat()
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const activeModel = useModelStore((s) => s.activeModel)
   const models = useModelStore((s) => s.models)
   const [ragPanelOpen, setRagPanelOpen] = useState(false)
+  const [personaOpen, setPersonaOpen] = useState(false)
+  const { getActivePersona, setActivePersona } = useSettingsStore()
+  const activePersona = getActivePersona()
+  const allPersonas = useSettingsStore((s) => s.personas)
 
-  // Document count badge for RAG button
   const docCount = useRAGStore((s) =>
     activeConversationId ? (s.documents[activeConversationId] || []).length : 0
   )
   const ragEnabled = useRAGStore((s) =>
     activeConversationId ? s.ragEnabled[activeConversationId] ?? false : false
   )
-
-  // Check if current conversation has user messages
-  const conversation = useChatStore((s) => {
-    if (!s.activeConversationId) return undefined
-    return s.conversations.find((c) => c.id === s.activeConversationId)
-  })
-  const hasUserMessages = conversation?.messages.some((m) => m.role === 'user') ?? false
-
-  // Show welcome + personas only when no conversation is selected (homepage)
-  if (!activeConversationId) {
-    const hasModels = models.length > 0
-
-    return (
-      <div className="h-full flex flex-col">
-        <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto scrollbar-thin">
-          <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center mb-4">
-            <Cpu size={32} className="text-gray-400" />
-          </div>
-          <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Locally Uncensored</h1>
-          <p className="text-gray-500 mb-6 text-center max-w-md text-sm">
-            Private, local AI. Choose a persona and start chatting.
-          </p>
-
-          {!hasModels && <ModelRecommendation />}
-
-          {hasModels && !activeModel && (
-            <div className="text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 rounded-lg px-4 py-2 mb-6">
-              Select a model from the dropdown above to start chatting.
-            </div>
-          )}
-
-          <PersonaPanel />
-        </div>
-        <ChatInput onSend={sendMessage} onStop={stopGeneration} isGenerating={isGenerating} />
-      </div>
-    )
-  }
+  const isAgentActive = useAgentModeStore((s) =>
+    activeConversationId ? s.agentModeActive[activeConversationId] ?? false : false
+  )
 
   return (
-    <div className="h-full flex">
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex items-center justify-end px-3 pt-1">
-          <button
-            onClick={() => setRagPanelOpen(!ragPanelOpen)}
-            className={
-              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors text-xs ' +
-              (ragPanelOpen || ragEnabled
-                ? 'bg-green-100 dark:bg-green-500/15 text-green-600 dark:text-green-300'
-                : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400')
-            }
-            title="Document Chat (RAG)"
+    <div className="h-full flex flex-col min-w-0">
+      <AnimatePresence mode="wait">
+        {!activeConversationId ? (
+          // ── Homepage: just logo, no prompt ──
+          <motion.div
+            key="home"
+            className="flex-1 flex flex-col items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
           >
-            <FileText size={14} />
-            <span className="font-medium">Documents</span>
-            {docCount > 0 && (
-              <span className={
-                'min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[0.6rem] font-bold ' +
-                (ragEnabled
-                  ? 'bg-green-500 text-white'
-                  : 'bg-gray-200 dark:bg-white/15 text-gray-600 dark:text-gray-300')
-              }>
-                {docCount}
-              </span>
+            <img src="/LU-monogram-bw.png" alt="" width={32} height={32} className="dark:invert-0 invert opacity-20 mb-3" />
+            <h1 className="text-[0.8rem] font-semibold text-gray-400 mb-0.5 tracking-wide">LUncensored</h1>
+            <p className="text-[0.6rem] text-gray-600">No filters, no limits.</p>
+
+            {models.length === 0 && <div className="mt-4"><ModelRecommendation /></div>}
+            {models.length > 0 && !activeModel && (
+              <p className="text-[0.6rem] text-amber-500/60 mt-3">Select a model above.</p>
             )}
-          </button>
-        </div>
-        <MessageList isGenerating={isGenerating} />
-        <ChatInput onSend={sendMessage} onStop={stopGeneration} isGenerating={isGenerating} />
-      </div>
-      <AnimatePresence>
-        {ragPanelOpen && (
-          <ErrorBoundary fallbackClassName="w-[280px] shrink-0 h-full border-l border-white/5 bg-[#2a2a2a] flex flex-col items-center justify-center p-6 gap-3">
-            <RAGPanel conversationId={activeConversationId} />
-          </ErrorBoundary>
+          </motion.div>
+        ) : (
+          // ── Active chat ──
+          <motion.div
+            key="chat"
+            className="flex-1 flex overflow-hidden"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+          >
+            <div className="flex-1 flex flex-col min-w-0">
+              {/* Top bar: Documents + Agent Mode */}
+              <div className="flex items-center justify-end gap-2 px-3 pt-1">
+                {/* Persona selector */}
+                <div className="relative">
+                  <button
+                    onClick={() => setPersonaOpen(!personaOpen)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-300 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/25 text-gray-500 dark:text-gray-400 transition-colors text-xs"
+                  >
+                    <User size={13} />
+                    <span className="font-medium max-w-[80px] truncate">{activePersona?.name || 'No Persona'}</span>
+                    <ChevronDown size={10} className={`transition-transform ${personaOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {personaOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setPersonaOpen(false)} />
+                      <div className="absolute right-0 top-full mt-1 z-50 w-48 max-h-[250px] overflow-y-auto scrollbar-thin rounded-lg bg-[#1a1a1a] border border-white/10 shadow-xl py-1">
+                        {/* Active persona pinned at top */}
+                        {activePersona && (
+                          <div className="px-2 pb-1 mb-1 border-b border-white/[0.06]">
+                            <div className="px-2 py-1.5 rounded-md bg-white/[0.06] border border-white/10 text-[0.65rem] text-white font-medium flex items-center gap-1.5">
+                              <div className="w-1 h-1 rounded-full bg-green-400 shrink-0" />
+                              {activePersona.name}
+                            </div>
+                          </div>
+                        )}
+                        {/* Other personas */}
+                        {allPersonas.filter(p => p.id !== activePersona?.id).map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => { setActivePersona(p.id); setPersonaOpen(false) }}
+                            className="w-full text-left px-3 py-1.5 text-[0.65rem] text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors"
+                          >
+                            {p.name}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Documents (RAG) */}
+                <button
+                  onClick={() => setRagPanelOpen(!ragPanelOpen)}
+                  className={
+                    'flex items-center gap-1.5 px-3 py-1 rounded-full border transition-colors text-xs ' +
+                    (ragPanelOpen || ragEnabled
+                      ? 'border-green-400 dark:border-green-500/40 text-green-600 dark:text-green-300'
+                      : 'border-gray-300 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/25 text-gray-500 dark:text-gray-400')
+                  }
+                  title="Document Chat (RAG)"
+                >
+                  <FileText size={13} />
+                  <span className="font-medium">Documents</span>
+                  {docCount > 0 && (
+                    <span className={
+                      'min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[0.55rem] font-bold ' +
+                      (ragEnabled ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-white/15 text-gray-600 dark:text-gray-300')
+                    }>
+                      {docCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Agent Mode (Beta) */}
+                {FEATURE_FLAGS.AGENT_MODE && (
+                  <div className={
+                    'flex items-center gap-1.5 px-3 py-1 rounded-full border transition-colors text-xs ' +
+                    (isAgentActive
+                      ? 'border-green-400 dark:border-green-500/40 text-green-600 dark:text-green-300'
+                      : activeModel && !isAgentCompatible(activeModel)
+                        ? 'border-gray-300/50 dark:border-white/8 text-gray-400 dark:text-gray-600 opacity-50'
+                        : 'border-gray-300 dark:border-white/15 text-gray-500 dark:text-gray-400')
+                  }>
+                    <Bot size={13} />
+                    <div className="flex flex-col items-start leading-none">
+                      <span className="text-[0.45rem] text-amber-400 font-bold uppercase tracking-widest">Beta</span>
+                      <span className="font-medium">Agent</span>
+                    </div>
+                    <AgentModeToggle />
+                  </div>
+                )}
+              </div>
+
+              <MessageList isGenerating={isGenerating} isLoadingModel={isLoadingModel} />
+              <ChatInput
+                onSend={sendMessage}
+                onStop={stopGeneration}
+                isGenerating={isGenerating}
+                pendingApproval={pendingApproval}
+                onApprove={approveToolCall}
+                onReject={rejectToolCall}
+              />
+            </div>
+
+            {/* RAG Panel */}
+            <AnimatePresence>
+              {ragPanelOpen && (
+                <ErrorBoundary fallbackClassName="w-[280px] shrink-0 h-full border-l border-white/5 bg-[#2a2a2a] flex flex-col items-center justify-center p-6 gap-3">
+                  <RAGPanel conversationId={activeConversationId} />
+                </ErrorBoundary>
+              )}
+            </AnimatePresence>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

@@ -1,5 +1,4 @@
 import { Trash2, Info, MessageSquare, Image, Video } from 'lucide-react'
-import { GlassCard } from '../ui/GlassCard'
 import { formatBytes } from '../../lib/formatters'
 import type { AIModel } from '../../types/models'
 
@@ -12,9 +11,9 @@ interface Props {
 }
 
 const TYPE_CONFIG = {
-  text: { label: 'Text', icon: MessageSquare, color: 'bg-blue-500/15 text-blue-300' },
-  image: { label: 'Image', icon: Image, color: 'bg-purple-500/15 text-purple-300' },
-  video: { label: 'Video', icon: Video, color: 'bg-green-500/15 text-green-300' },
+  text: { label: 'Text', icon: MessageSquare, color: 'text-blue-400' },
+  image: { label: 'Image', icon: Image, color: 'text-purple-400' },
+  video: { label: 'Video', icon: Video, color: 'text-green-400' },
 }
 
 export function ModelCard({ model, isActive, onSelect, onDelete, onInfo }: Props) {
@@ -22,49 +21,55 @@ export function ModelCard({ model, isActive, onSelect, onDelete, onInfo }: Props
   const TypeIcon = typeInfo.icon
 
   return (
-    <GlassCard hover className={`cursor-pointer ${isActive ? 'border-white/15' : ''}`}>
-      <div onClick={onSelect}>
-        <div className="flex items-start justify-between mb-2">
-          <h3 className="font-semibold text-gray-900 dark:text-white text-sm truncate flex-1">{model.name}</h3>
-          {isActive && (
-            <span className="text-xs bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-white px-2 py-0.5 rounded-full ml-2 shrink-0">
-              Active
-            </span>
-          )}
+    <div
+      onClick={onSelect}
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all group ${
+        isActive
+          ? 'bg-white/[0.04] border-l-2 border-l-blue-400'
+          : 'hover:bg-white/[0.02] border-l-2 border-l-transparent'
+      }`}
+    >
+      {/* Type icon */}
+      <TypeIcon size={13} className={`${typeInfo.color} shrink-0`} />
+
+      {/* Name + details */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-[0.72rem] text-gray-200 font-medium truncate">{model.name}</span>
+          {isActive && <span className="text-[0.5rem] text-blue-400 font-medium uppercase">Active</span>}
         </div>
-        <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1 ${typeInfo.color}`}>
-              <TypeIcon size={10} /> {typeInfo.label}
-            </span>
-          </div>
-          {model.size > 0 && <p>Size: {formatBytes(model.size)}</p>}
+        <div className="flex items-center gap-2 text-[0.6rem] text-gray-500">
+          {model.size > 0 && <span>{formatBytes(model.size)}</span>}
           {model.type === 'text' && 'details' in model && (
             <>
-              <p>Family: {model.details?.family || 'unknown'}</p>
-              <p>Parameters: {model.details?.parameter_size || 'unknown'}</p>
-              <p>Quantization: {model.details?.quantization_level || 'unknown'}</p>
+              {model.details?.family && <span>{model.details.family}</span>}
+              {model.details?.parameter_size && <span>{model.details.parameter_size}</span>}
+              {model.details?.quantization_level && <span>{model.details.quantization_level}</span>}
             </>
           )}
-          {(model.type === 'image' || model.type === 'video') && 'architecture' in model && (
-            <p>Format: {model.format || 'safetensors'}</p>
+          {(model.type === 'image' || model.type === 'video') && (
+            <span>{model.format || 'safetensors'}</span>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-white/5">
+
+      {/* Actions (visible on hover) */}
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         <button
           onClick={(e) => { e.stopPropagation(); onInfo() }}
-          className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          className="p-1 rounded hover:bg-white/10 text-gray-500 hover:text-gray-300 transition-colors"
+          title="Details"
         >
-          <Info size={14} /> Details
+          <Info size={12} />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onDelete() }}
-          className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-red-400 transition-colors ml-auto"
+          className="p-1 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors"
+          title="Delete"
         >
-          <Trash2 size={14} /> Delete
+          <Trash2 size={12} />
         </button>
       </div>
-    </GlassCard>
+    </div>
   )
 }

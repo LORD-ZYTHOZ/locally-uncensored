@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Check, MessageSquare, Image, Video } from 'lucide-react'
+import { ChevronDown, Check, MessageSquare, Image, Video, Loader2, Power } from 'lucide-react'
 import { useModels } from '../../hooks/useModels'
+import { unloadAllModels } from '../../api/ollama'
 import { formatBytes } from '../../lib/formatters'
 import type { AIModel } from '../../types/models'
 
@@ -14,6 +15,8 @@ const TYPE_BADGE: Record<string, { label: string; color: string }> = {
 export function ModelSelector() {
   const { models, activeModel, setActiveModel, fetchModels } = useModels()
   const [open, setOpen] = useState(false)
+  const [unloading, setUnloading] = useState(false)
+  const [unloadDone, setUnloadDone] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -96,6 +99,32 @@ export function ModelSelector() {
                   </button>
                 )
               })}
+
+              {/* Unload All text models button */}
+              {models.some(m => m.type === 'text') && (
+                <>
+                  <div className="border-t border-gray-200 dark:border-white/10 my-1" />
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      if (unloading) return
+                      setUnloading(true)
+                      setUnloadDone(false)
+                      try {
+                        await unloadAllModels()
+                        setUnloadDone(true)
+                        setTimeout(() => setUnloadDone(false), 2000)
+                      } catch { /* ignore */ }
+                      finally { setUnloading(false) }
+                    }}
+                    disabled={unloading}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                  >
+                    {unloading ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
+                    <span>{unloadDone ? 'Models unloaded!' : unloading ? 'Unloading...' : 'Unload all text models'}</span>
+                  </button>
+                </>
+              )}
             </div>
           </motion.div>
         )}

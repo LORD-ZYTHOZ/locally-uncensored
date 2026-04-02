@@ -5,7 +5,6 @@ import { ChatView } from '../chat/ChatView'
 import { ModelManager } from '../models/ModelManager'
 import { SettingsPage } from '../settings/SettingsPage'
 import { CreateView } from '../create/CreateView'
-import { AgentView } from '../agents/AgentView'
 import { Onboarding } from '../onboarding/Onboarding'
 import { useUIStore } from '../../stores/uiStore'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -35,7 +34,6 @@ export function AppShell() {
             {currentView === 'models' && <ModelManager />}
             {currentView === 'settings' && <SettingsPage />}
             {currentView === 'create' && <CreateView />}
-            {currentView === 'agents' && <AgentView />}
           </main>
         </div>
       </div>

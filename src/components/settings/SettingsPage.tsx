@@ -1,14 +1,73 @@
-import { useState, useEffect } from 'react'
-import { ArrowLeft, RotateCcw, Sun, Moon, Mic, Volume2, Check, X, Loader2 } from 'lucide-react'
+import { useState, useEffect, type ReactNode } from 'react'
+import { ArrowLeft, RotateCcw, Sun, Moon, Mic, Volume2, Check, X, Loader2, Bot, Shield, Terminal, Search, FileText, ChevronRight } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useUIStore } from '../../stores/uiStore'
-import { GlassCard } from '../ui/GlassCard'
-import { GlowButton } from '../ui/GlowButton'
 import { SliderControl } from './SliderControl'
 import { ApiConfig } from './ApiConfig'
 import { PersonaPanel } from '../personas/PersonaPanel'
 import { useVoiceStore } from '../../stores/voiceStore'
 import { checkWhisperAvailable } from '../../api/voice'
+import { useAgentModeStore } from '../../stores/agentModeStore'
+import { FEATURE_FLAGS } from '../../lib/constants'
+import { AGENT_TOOL_DEFS } from '../../api/tool-registry'
+import { getRecommendedAgentModels } from '../../lib/model-compatibility'
+import { MemorySettings } from './MemorySettings'
+
+// ── Collapsible Section ─────────────────────────────────────────
+
+function Section({ title, children, defaultOpen = false }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="border-b border-gray-100 dark:border-white/[0.04]">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-2.5 group"
+      >
+        <span className="text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
+          {title}
+        </span>
+        <ChevronRight size={12} className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden"
+          >
+            <div className="pb-3 space-y-2">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ── Inline Toggle ───────────────────────────────────────────────
+
+function InlineToggle({ label, enabled, onChange, icon }: { label: string; enabled: boolean; onChange: () => void; icon?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between py-0.5">
+      <div className="flex items-center gap-1.5">
+        {icon}
+        <span className="text-[0.7rem] text-gray-500 dark:text-gray-400">{label}</span>
+      </div>
+      <button
+        onClick={onChange}
+        className={`relative w-7 h-3.5 rounded-full transition-colors ${enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform ${enabled ? 'translate-x-3.5' : ''}`} />
+      </button>
+    </div>
+  )
+}
+
+// ── Main Component ──────────────────────────────────────────────
 
 export function SettingsPage() {
   const { settings, updateSettings, resetSettings } = useSettingsStore()
@@ -31,7 +90,6 @@ export function SettingsPage() {
     return () => speechSynthesis.removeEventListener('voiceschanged', loadVoices)
   }, [ttsSupported])
 
-  // Check Whisper availability on mount
   useEffect(() => {
     setWhisperLoading(true)
     checkWhisperAvailable()
@@ -40,199 +98,163 @@ export function SettingsPage() {
   }, [])
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-thin p-6">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={() => setView('chat')}
-            className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-          >
-            <ArrowLeft size={20} />
+    <div className="h-full overflow-y-auto scrollbar-thin">
+      <div className="max-w-lg mx-auto px-4 py-4">
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-4">
+          <button onClick={() => setView('chat')} className="p-1 rounded hover:bg-white/5 text-gray-500 hover:text-white transition-colors">
+            <ArrowLeft size={16} />
           </button>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Settings</h1>
+          <h1 className="text-[0.8rem] font-semibold text-gray-800 dark:text-gray-200">Settings</h1>
         </div>
 
-        <GlassCard>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 uppercase tracking-wider">Appearance</h2>
-          <div className="space-y-3">
-            <label className="text-sm text-gray-600 dark:text-gray-300">Theme</label>
-            <div className="flex gap-2">
-              <GlowButton
-                variant={settings.theme === 'light' ? 'primary' : 'secondary'}
+        {/* ── Appearance ─────────────────────────────── */}
+        <Section title="Appearance" defaultOpen>
+          <div className="flex items-center justify-between">
+            <span className="text-[0.7rem] text-gray-500 dark:text-gray-400">Theme</span>
+            <div className="flex gap-1">
+              <button
                 onClick={() => updateSettings({ theme: 'light' })}
-                className="flex-1 flex items-center justify-center gap-2"
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[0.65rem] transition-colors ${
+                  settings.theme === 'light' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'
+                }`}
               >
-                <Sun size={16} /> Light
-              </GlowButton>
-              <GlowButton
-                variant={settings.theme === 'dark' ? 'primary' : 'secondary'}
+                <Sun size={11} /> Light
+              </button>
+              <button
                 onClick={() => updateSettings({ theme: 'dark' })}
-                className="flex-1 flex items-center justify-center gap-2"
+                className={`flex items-center gap-1 px-2 py-1 rounded text-[0.65rem] transition-colors ${
+                  settings.theme === 'dark' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'
+                }`}
               >
-                <Moon size={16} /> Dark
-              </GlowButton>
+                <Moon size={11} /> Dark
+              </button>
             </div>
           </div>
-        </GlassCard>
+        </Section>
 
-        <GlassCard>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 uppercase tracking-wider">Generation Parameters</h2>
-          <div className="space-y-5">
-            <SliderControl
-              label="Temperature"
-              value={settings.temperature}
+        {/* ── Generation Parameters ──────────────────── */}
+        <Section title="Generation">
+          <SliderControl label="Temperature" value={settings.temperature} min={0} max={2} step={0.1} onChange={(v) => updateSettings({ temperature: v })} />
+          <SliderControl label="Top P" value={settings.topP} min={0} max={1} step={0.05} onChange={(v) => updateSettings({ topP: v })} />
+          <SliderControl label="Top K" value={settings.topK} min={1} max={100} step={1} onChange={(v) => updateSettings({ topK: v })} />
+          <div className="flex items-center justify-between">
+            <span className="text-[0.7rem] text-gray-500 dark:text-gray-400">Max Tokens</span>
+            <input
+              type="number"
+              value={settings.maxTokens}
+              onChange={(e) => updateSettings({ maxTokens: parseInt(e.target.value) || 0 })}
               min={0}
-              max={2}
-              step={0.1}
-              onChange={(v) => updateSettings({ temperature: v })}
+              placeholder="0"
+              className="w-20 px-1.5 py-0.5 rounded bg-transparent border border-white/8 text-[0.65rem] text-right text-gray-300 font-mono focus:outline-none focus:border-white/20"
             />
-            <SliderControl
-              label="Top P"
-              value={settings.topP}
-              min={0}
-              max={1}
-              step={0.05}
-              onChange={(v) => updateSettings({ topP: v })}
-            />
-            <SliderControl
-              label="Top K"
-              value={settings.topK}
-              min={1}
-              max={100}
-              step={1}
-              onChange={(v) => updateSettings({ topK: v })}
-            />
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-600 dark:text-gray-300">Max Tokens</label>
-                <span className="text-sm font-mono text-gray-600 dark:text-gray-300">{settings.maxTokens || 'Unlimited'}</span>
-              </div>
-              <input
-                type="number"
-                value={settings.maxTokens}
-                onChange={(e) => updateSettings({ maxTokens: parseInt(e.target.value) || 0 })}
-                min={0}
-                placeholder="0 = unlimited"
-                className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-gray-400 dark:focus:border-white/20 font-mono"
-              />
-            </div>
           </div>
-        </GlassCard>
+        </Section>
 
-        <GlassCard>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 uppercase tracking-wider">API Configuration</h2>
+        {/* ── API ────────────────────────────────────── */}
+        <Section title="API">
           <ApiConfig endpoint={settings.apiEndpoint} onChange={(v) => updateSettings({ apiEndpoint: v })} />
-        </GlassCard>
+        </Section>
 
-        <GlassCard>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 uppercase tracking-wider">Voice</h2>
-          <div className="space-y-4">
-            {/* Local STT status */}
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                {whisperLoading ? (
-                  <Loader2 size={14} className="animate-spin text-gray-400" />
-                ) : whisperStatus?.available ? (
-                  <Check size={14} className="text-green-500" />
-                ) : (
-                  <X size={14} className="text-red-500" />
-                )}
-                <span className="text-xs text-gray-600 dark:text-gray-300">
-                  Local STT{whisperStatus?.backend ? `: ${whisperStatus.backend}` : ''}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {ttsSupported ? (
-                  <Check size={14} className="text-green-500" />
-                ) : (
-                  <X size={14} className="text-red-500" />
-                )}
-                <span className="text-xs text-gray-600 dark:text-gray-300">Text-to-Speech</span>
-              </div>
-            </div>
-
-            {/* Whisper install hint */}
-            {whisperStatus && !whisperStatus.available && (
-              <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
-                Whisper not installed. Run: <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">pip install faster-whisper</code>
-              </div>
-            )}
-
-            {/* TTS Enabled toggle */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Volume2 size={16} className="text-gray-500 dark:text-gray-400" />
-                <label className="text-sm text-gray-600 dark:text-gray-300">TTS Enabled</label>
-              </div>
-              <button
-                onClick={() => voiceSettings.updateVoiceSettings({ ttsEnabled: !voiceSettings.ttsEnabled })}
-                className={`relative w-10 h-5 rounded-full transition-colors ${voiceSettings.ttsEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${voiceSettings.ttsEnabled ? 'translate-x-5' : ''}`} />
-              </button>
-            </div>
-
-            {/* TTS Voice dropdown */}
-            <div className="space-y-1.5">
-              <label className="text-sm text-gray-600 dark:text-gray-300">TTS Voice</label>
-              <select
-                value={voiceSettings.ttsVoice}
-                onChange={(e) => voiceSettings.updateVoiceSettings({ ttsVoice: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-gray-400 dark:focus:border-white/20"
-              >
-                <option value="">System Default</option>
-                {voices.map((v) => (
-                  <option key={v.name} value={v.name}>
-                    {v.name} ({v.lang})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* TTS Rate slider */}
-            <SliderControl
-              label="TTS Rate"
-              value={voiceSettings.ttsRate}
-              min={0.5}
-              max={2}
-              step={0.1}
-              onChange={(v) => voiceSettings.updateVoiceSettings({ ttsRate: v })}
-            />
-
-            {/* TTS Pitch slider */}
-            <SliderControl
-              label="TTS Pitch"
-              value={voiceSettings.ttsPitch}
-              min={0.5}
-              max={2}
-              step={0.1}
-              onChange={(v) => voiceSettings.updateVoiceSettings({ ttsPitch: v })}
-            />
-
-            {/* Auto-send on transcribe toggle */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Mic size={16} className="text-gray-500 dark:text-gray-400" />
-                <label className="text-sm text-gray-600 dark:text-gray-300">Auto-send on Transcribe</label>
-              </div>
-              <button
-                onClick={() => voiceSettings.updateVoiceSettings({ autoSendOnTranscribe: !voiceSettings.autoSendOnTranscribe })}
-                className={`relative w-10 h-5 rounded-full transition-colors ${voiceSettings.autoSendOnTranscribe ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${voiceSettings.autoSendOnTranscribe ? 'translate-x-5' : ''}`} />
-              </button>
-            </div>
+        {/* ── Voice ──────────────────────────────────── */}
+        <Section title="Voice">
+          <div className="flex items-center gap-3 text-[0.65rem]">
+            <span className="flex items-center gap-1">
+              {whisperLoading ? <Loader2 size={10} className="animate-spin text-gray-500" /> : whisperStatus?.available ? <Check size={10} className="text-green-500" /> : <X size={10} className="text-red-500" />}
+              <span className="text-gray-500">STT</span>
+            </span>
+            <span className="flex items-center gap-1">
+              {ttsSupported ? <Check size={10} className="text-green-500" /> : <X size={10} className="text-red-500" />}
+              <span className="text-gray-500">TTS</span>
+            </span>
           </div>
-        </GlassCard>
+          <InlineToggle label="TTS Enabled" enabled={voiceSettings.ttsEnabled} onChange={() => voiceSettings.updateVoiceSettings({ ttsEnabled: !voiceSettings.ttsEnabled })} icon={<Volume2 size={11} className="text-gray-500" />} />
+          <div className="flex items-center justify-between">
+            <span className="text-[0.7rem] text-gray-500">Voice</span>
+            <select
+              value={voiceSettings.ttsVoice}
+              onChange={(e) => voiceSettings.updateVoiceSettings({ ttsVoice: e.target.value })}
+              className="max-w-[180px] px-1.5 py-0.5 rounded bg-transparent border border-white/8 text-[0.65rem] text-gray-300 focus:outline-none"
+            >
+              <option value="">Default</option>
+              {voices.map((v) => <option key={v.name} value={v.name}>{v.name}</option>)}
+            </select>
+          </div>
+          <SliderControl label="Rate" value={voiceSettings.ttsRate} min={0.5} max={2} step={0.1} onChange={(v) => voiceSettings.updateVoiceSettings({ ttsRate: v })} />
+          <SliderControl label="Pitch" value={voiceSettings.ttsPitch} min={0.5} max={2} step={0.1} onChange={(v) => voiceSettings.updateVoiceSettings({ ttsPitch: v })} />
+          <InlineToggle label="Auto-send on Transcribe" enabled={voiceSettings.autoSendOnTranscribe} onChange={() => voiceSettings.updateVoiceSettings({ autoSendOnTranscribe: !voiceSettings.autoSendOnTranscribe })} icon={<Mic size={11} className="text-gray-500" />} />
+        </Section>
 
-        <GlassCard>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 uppercase tracking-wider">Personas</h2>
+        {/* ── Personas ───────────────────────────────── */}
+        <Section title="Personas">
           <PersonaPanel />
-        </GlassCard>
+        </Section>
 
-        <GlowButton variant="secondary" onClick={resetSettings} className="w-full flex items-center justify-center gap-2">
-          <RotateCcw size={16} /> Reset to Defaults
-        </GlowButton>
+        {/* ── Agent Mode ─────────────────────────────── */}
+        {FEATURE_FLAGS.AGENT_MODE && (
+          <Section title="Agent Mode (Beta)">
+            <div className="flex items-center justify-between">
+              <span className="text-[0.7rem] text-gray-500">Sandbox</span>
+              <div className="flex gap-1">
+                {(['restricted', 'full'] as const).map(level => (
+                  <button
+                    key={level}
+                    onClick={() => useAgentModeStore.getState().setSandboxLevel(level)}
+                    className={`px-2 py-0.5 rounded text-[0.6rem] transition-colors ${
+                      useAgentModeStore.getState().sandboxLevel === level ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    {level === 'restricted' ? 'Restricted' : 'Full Access'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-[0.6rem] text-gray-500">Tools</span>
+              {AGENT_TOOL_DEFS.map((tool) => (
+                <div key={tool.name} className="flex items-center justify-between py-0.5">
+                  <span className="text-[0.65rem] text-gray-400 font-mono">{tool.name}</span>
+                  <span className={`text-[0.55rem] ${tool.permission === 'auto' ? 'text-green-500' : 'text-amber-400'}`}>
+                    {tool.permission === 'auto' ? 'auto' : 'approval'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-[0.6rem] text-gray-500">Recommended Models</span>
+              {getRecommendedAgentModels().map((m) => (
+                <div key={m.name} className="flex items-center gap-1.5 py-0.5">
+                  {m.hot && <span className="text-[0.5rem] text-orange-400 font-bold">HOT</span>}
+                  <span className="text-[0.65rem] text-gray-300">{m.label}</span>
+                  <span className="text-[0.55rem] text-gray-600">— {m.reason}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => useAgentModeStore.getState().setTutorialCompleted()}
+              className="text-[0.6rem] text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              Reset tutorial
+            </button>
+          </Section>
+        )}
+
+        {/* ── Memory ─────────────────────────────────── */}
+        {FEATURE_FLAGS.AGENT_MODE && (
+          <Section title="Agent Memory">
+            <MemorySettings />
+          </Section>
+        )}
+
+        {/* ── Reset ──────────────────────────────────── */}
+        <div className="pt-3 pb-6">
+          <button
+            onClick={resetSettings}
+            className="flex items-center gap-1.5 text-[0.65rem] text-gray-500 hover:text-red-400 transition-colors"
+          >
+            <RotateCcw size={11} /> Reset to Defaults
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, MessageSquare, Trash2, Edit3, Check, X } from 'lucide-react'
+import { Plus, Search, Trash2, Edit3, Check, X } from 'lucide-react'
 import { useChatStore } from '../../stores/chatStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useModelStore } from '../../stores/modelStore'
@@ -43,49 +43,49 @@ export function Sidebar() {
     <AnimatePresence>
       {sidebarOpen && (
         <motion.aside
-          className="w-72 h-full border-r border-gray-200 dark:border-white/[0.06] bg-gray-50 dark:bg-[#0e0e0e] flex flex-col z-20 overflow-hidden"
+          className="w-56 h-full border-r border-white/[0.04] bg-[#0a0a0a] flex flex-col z-20 overflow-hidden"
           initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 288, opacity: 1 }}
+          animate={{ width: 224, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.15 }}
         >
-          <div className="p-3 space-y-3">
+          {/* New Chat + Search */}
+          <div className="px-2 pt-2 pb-1 space-y-1.5">
             <button
               onClick={handleNewChat}
-              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-gray-200 dark:bg-white/[0.08] border border-gray-300 dark:border-white/[0.1] text-gray-800 dark:text-white hover:bg-gray-300 dark:hover:bg-white/[0.12] transition-all"
+              className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[0.7rem] text-gray-400 hover:text-white hover:bg-white/[0.05] transition-all"
             >
-              <Plus size={18} />
-              <span className="text-sm font-medium">New Chat</span>
+              <Plus size={13} />
+              <span>New Chat</span>
             </button>
 
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-600" />
               <input
                 type="text"
-                placeholder="Search conversations..."
+                placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-white/[0.04] border border-gray-300 dark:border-white/[0.08] text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-gray-400 dark:focus:border-white/20"
+                className="w-full pl-6 pr-2 py-1 rounded-md bg-transparent border border-white/[0.04] text-[0.65rem] text-gray-300 placeholder-gray-600 focus:outline-none focus:border-white/10"
               />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-2 space-y-0.5 scrollbar-thin">
+          {/* Conversations */}
+          <div className="flex-1 overflow-y-auto px-1.5 pt-1 space-y-px scrollbar-thin">
             {filtered.map((conv) => (
-              <motion.div
+              <div
                 key={conv.id}
-                className={`group flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${
+                className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer transition-all ${
                   conv.id === activeConversationId
-                    ? 'bg-gray-200 dark:bg-white/[0.08] border border-gray-300 dark:border-white/[0.1]'
-                    : 'hover:bg-gray-100 dark:hover:bg-white/[0.04] border border-transparent'
+                    ? 'bg-white/[0.06] text-white'
+                    : 'text-gray-400 hover:bg-white/[0.03] hover:text-gray-200'
                 }`}
                 onClick={() => {
                   setActiveConversation(conv.id)
                   setView('chat')
                 }}
-                layout
               >
-                <MessageSquare size={16} className="text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   {editingId === conv.id ? (
                     <div className="flex items-center gap-1">
@@ -93,51 +93,42 @@ export function Sidebar() {
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleRename(conv.id)}
-                        className="w-full bg-white/10 rounded px-1 py-0.5 text-sm text-white focus:outline-none"
+                        className="w-full bg-white/5 rounded px-1 py-0.5 text-[0.65rem] text-white focus:outline-none"
                         autoFocus
                         onClick={(e) => e.stopPropagation()}
                       />
-                      <button onClick={(e) => { e.stopPropagation(); handleRename(conv.id) }} className="text-green-400" aria-label="Confirm rename"><Check size={14} /></button>
-                      <button onClick={(e) => { e.stopPropagation(); setEditingId(null) }} className="text-gray-400" aria-label="Cancel rename"><X size={14} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleRename(conv.id) }} className="text-green-400"><Check size={11} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingId(null) }} className="text-gray-500"><X size={11} /></button>
                     </div>
                   ) : (
                     <>
-                      <p className="text-sm text-gray-800 dark:text-white truncate">{truncate(conv.title, 30)}</p>
-                      <p className="text-xs text-gray-500">{formatDate(conv.updatedAt)}</p>
+                      <p className="text-[0.68rem] truncate">{truncate(conv.title, 28)}</p>
+                      <p className="text-[0.55rem] text-gray-600">{formatDate(conv.updatedAt)}</p>
                     </>
                   )}
                 </div>
                 {editingId !== conv.id && (
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setEditingId(conv.id)
-                        setEditTitle(conv.title)
-                      }}
-                      className="p-1 rounded hover:bg-white/10 text-gray-400"
-                      aria-label="Rename conversation"
+                      onClick={(e) => { e.stopPropagation(); setEditingId(conv.id); setEditTitle(conv.title) }}
+                      className="p-0.5 rounded hover:bg-white/10 text-gray-500 hover:text-gray-300"
                     >
-                      <Edit3 size={12} />
+                      <Edit3 size={10} />
                     </button>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        deleteConversation(conv.id)
-                      }}
-                      className="p-1 rounded hover:bg-red-500/20 text-gray-400 hover:text-red-400"
-                      aria-label="Delete conversation"
+                      onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id) }}
+                      className="p-0.5 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400"
                     >
-                      <Trash2 size={12} />
+                      <Trash2 size={10} />
                     </button>
                   </div>
                 )}
-              </motion.div>
+              </div>
             ))}
 
             {filtered.length === 0 && (
-              <p className="text-center text-gray-500 text-sm py-8">
-                {search ? 'No results found' : 'No conversations yet'}
+              <p className="text-center text-gray-600 text-[0.6rem] py-6">
+                {search ? 'No results' : 'No conversations'}
               </p>
             )}
           </div>

@@ -50,7 +50,7 @@ async fn try_searxng(query: &str, count: usize) -> Result<Vec<SearchResult>, Str
 async fn try_ddg(query: &str, count: usize) -> Result<Vec<SearchResult>, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -62,22 +62,43 @@ async fn try_ddg(query: &str, count: usize) -> Result<Vec<SearchResult>, String>
 
     let html = resp.text().await.map_err(|e| e.to_string())?;
 
-    // Parse results from HTML using regex
-    let title_re = regex::Regex::new(r#"class="result__a"[^>]*>([^<]+)</a>"#).unwrap();
-    let url_re = regex::Regex::new(r#"class="result__url"[^>]*href="([^"]+)">"#).unwrap();
-    let snippet_re = regex::Regex::new(r#"class="result__snippet"[^>]*>([^<]+)"#).unwrap();
+    // Parse results — capture full inner HTML then strip tags
+    let title_re = regex::Regex::new(r#"class="result__a"[^>]*>(.*?)</a>"#).unwrap();
+    let url_re = regex::Regex::new(r#"class="result__url"[^>]*?href="([^"]*)"#).unwrap();
+    let snippet_re = regex::Regex::new(r#"class="result__snippet"[^>]*>([\s\S]*?)</(?:td|div|a\s)"#).unwrap();
 
-    let titles: Vec<String> = title_re.captures_iter(&html).map(|c| c[1].to_string()).collect();
-    let urls: Vec<String> = url_re.captures_iter(&html).map(|c| c[1].to_string()).collect();
-    let snippets: Vec<String> = snippet_re.captures_iter(&html).map(|c| c[1].to_string()).collect();
+    let titles: Vec<String> = title_re.captures_iter(&html)
+        .map(|c| html_decode(&strip_html(&c[1])))
+        .collect();
+    let urls: Vec<String> = url_re.captures_iter(&html)
+        .map(|c| {
+            let raw = &c[1];
+            // DDG wraps URLs — extract actual URL from redirect
+            if let Some(pos) = raw.find("uddg=") {
+                let after = &raw[pos + 5..];
+                urlencoding::decode(after.split('&').next().unwrap_or(after))
+                    .unwrap_or_else(|_| after.into())
+                    .to_string()
+            } else {
+                raw.to_string()
+            }
+        })
+        .collect();
+    let snippets: Vec<String> = snippet_re.captures_iter(&html)
+        .map(|c| html_decode(&strip_html(&c[1])).trim().to_string())
+        .collect();
 
     let mut results = Vec::new();
     for i in 0..titles.len().min(count) {
-        results.push(SearchResult {
-            title: html_decode(&titles[i]),
-            url: urls.get(i).cloned().unwrap_or_default(),
-            snippet: snippets.get(i).map(|s| html_decode(s)).unwrap_or_default(),
-        });
+        let url = urls.get(i).cloned().unwrap_or_default();
+        let snippet = snippets.get(i).cloned().unwrap_or_default();
+        if !url.is_empty() {
+            results.push(SearchResult {
+                title: titles[i].clone(),
+                url,
+                snippet,
+            });
+        }
     }
 
     if results.is_empty() {

@@ -183,6 +183,51 @@ export function comfyuiWsUrl(): string {
   return "ws://localhost:8188/ws";
 }
 
+/** Download a ComfyUI output file — works in both dev and Tauri mode */
+export async function downloadComfyFile(filename: string, subfolder: string = '', type: string = 'output'): Promise<void> {
+  const params = new URLSearchParams({ filename, subfolder, type })
+  const url = comfyuiUrl(`/view?${params.toString()}`)
+
+  if (!isTauri()) {
+    // Dev mode: direct anchor download
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    return
+  }
+
+  // Tauri mode: fetch bytes through proxy, create blob URL
+  const invoke = await getInvoke()
+  try {
+    const bytes = await invoke('proxy_localhost_stream', {
+      url,
+      method: 'GET',
+      body: null,
+    }) as number[]
+    const blob = new Blob([new Uint8Array(bytes)])
+    const blobUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(blobUrl)
+  } catch (err) {
+    console.error('[downloadComfyFile] Failed:', err)
+    // Fallback: try direct link
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+}
+
 /** Fetch an external URL as text — works in both Tauri and dev mode */
 export async function fetchExternal(url: string): Promise<string> {
   if (isTauri()) {

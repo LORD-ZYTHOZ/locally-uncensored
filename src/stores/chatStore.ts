@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuid } from 'uuid'
 import type { Conversation, Message } from '../types/chat'
+import type { AgentBlock } from '../types/agent-mode'
 
 interface ChatState {
   conversations: Conversation[]
@@ -13,6 +14,7 @@ interface ChatState {
   addMessage: (conversationId: string, message: Message) => void
   updateMessageContent: (conversationId: string, messageId: string, content: string) => void
   updateMessageThinking: (conversationId: string, messageId: string, thinking: string) => void
+  updateMessageAgentBlocks: (conversationId: string, messageId: string, blocks: AgentBlock[]) => void
   getActiveConversation: () => Conversation | undefined
   searchConversations: (query: string) => Conversation[]
 }
@@ -94,6 +96,19 @@ export const useChatStore = create<ChatState>()(
               ? {
                 ...c,
                 messages: c.messages.map((m) => (m.id === messageId ? { ...m, thinking } : m)),
+                updatedAt: Date.now(),
+              }
+              : c
+          ),
+        })),
+
+      updateMessageAgentBlocks: (conversationId, messageId, agentBlocks) =>
+        set((state) => ({
+          conversations: state.conversations.map((c) =>
+            c.id === conversationId
+              ? {
+                ...c,
+                messages: c.messages.map((m) => (m.id === messageId ? { ...m, agentBlocks } : m)),
                 updatedAt: Date.now(),
               }
               : c

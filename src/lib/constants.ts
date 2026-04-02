@@ -1,5 +1,10 @@
 import type { Persona, Settings } from '../types/settings'
 
+// Feature flags — flip to true when ready to ship
+export const FEATURE_FLAGS = {
+  AGENT_MODE: true,
+} as const
+
 export const DEFAULT_SETTINGS: Settings = {
   apiEndpoint: 'http://localhost:11434',
   temperature: 0.7,

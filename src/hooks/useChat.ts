@@ -9,6 +9,8 @@ import { useRAGStore } from "../stores/ragStore"
 import { useVoiceStore } from "../stores/voiceStore"
 import { retrieveContext } from "../api/rag"
 import { speakStreaming, isSpeechSynthesisSupported, getVoicesAsync } from "../api/voice"
+import { useAgentChat } from "./useAgentChat"
+import { useAgentModeStore } from "../stores/agentModeStore"
 
 interface ChatChunk {
   message?: { content: string }
@@ -17,16 +19,25 @@ interface ChatChunk {
 
 export function useChat() {
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isLoadingModel, setIsLoadingModel] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const contentRef = useRef("")
   const thinkingRef = useRef("")
   const isThinkingRef = useRef(false)
+
+  // Agent mode composition
+  const agentChat = useAgentChat()
 
   const sendMessage = useCallback(async (content: string) => {
     const { activeModel } = useModelStore.getState()
     const { settings } = useSettingsStore.getState()
     const store = useChatStore.getState()
     const persona = useSettingsStore.getState().getActivePersona()
+
+    // Agent mode delegation: if active for this conversation, use agent chat
+    if (store.activeConversationId && useAgentModeStore.getState().isActive(store.activeConversationId)) {
+      return agentChat.sendAgentMessage(content)
+    }
 
     if (!activeModel) return
 
@@ -99,6 +110,7 @@ export function useChat() {
     const abort = new AbortController()
     abortRef.current = abort
     setIsGenerating(true)
+    setIsLoadingModel(true)
     contentRef.current = ""
     thinkingRef.current = ""
     isThinkingRef.current = false
@@ -117,7 +129,12 @@ export function useChat() {
       )
 
       let frameScheduled = false
+      let firstChunk = true
       for await (const chunk of parseNDJSONStream<ChatChunk>(response)) {
+        if (firstChunk) {
+          firstChunk = false
+          setIsLoadingModel(false)
+        }
         if (chunk.message?.content) {
           const text = chunk.message.content
 
@@ -171,6 +188,7 @@ export function useChat() {
       }
     } finally {
       setIsGenerating(false)
+      setIsLoadingModel(false)
       abortRef.current = null
 
       // Auto-speak response if TTS is enabled
@@ -194,5 +212,15 @@ export function useChat() {
     abortRef.current?.abort()
   }, [])
 
-  return { sendMessage, stopGeneration, isGenerating }
+  return {
+    sendMessage,
+    stopGeneration: agentChat.isAgentRunning ? agentChat.stopAgent : stopGeneration,
+    isGenerating: isGenerating || agentChat.isAgentRunning,
+    isLoadingModel,
+    // Agent mode additions
+    isAgentRunning: agentChat.isAgentRunning,
+    pendingApproval: agentChat.pendingApproval,
+    approveToolCall: agentChat.approveToolCall,
+    rejectToolCall: agentChat.rejectToolCall,
+  }
 }

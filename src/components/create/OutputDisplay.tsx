@@ -1,23 +1,19 @@
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Download, Maximize2, X, Copy, Check, RefreshCw } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Download, Maximize2, Copy, Check, RefreshCw, HardDrive, Brain, Cpu, Zap } from 'lucide-react'
 import { getImageUrl } from '../../api/comfyui'
+import { downloadComfyFile } from '../../api/backend'
 import { useCreateStore, type GalleryItem } from '../../stores/createStore'
+import { MediaViewer } from './MediaViewer'
 
 export function OutputDisplay() {
-  const { isGenerating, progress, progressText, gallery, lastGenTime } = useCreateStore()
-  const [fullscreen, setFullscreen] = useState<GalleryItem | null>(null)
+  const { isGenerating, progress, progressText, progressPhase, gallery, lastGenTime } = useCreateStore()
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [copiedSeed, setCopiedSeed] = useState(false)
   const latest = gallery[0]
 
   const handleDownload = (item: GalleryItem) => {
-    const url = getImageUrl(item.filename, item.subfolder)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = item.filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    downloadComfyFile(item.filename, item.subfolder)
   }
 
   const copySeed = (seed: number) => {
@@ -26,32 +22,93 @@ export function OutputDisplay() {
     setTimeout(() => setCopiedSeed(false), 1500)
   }
 
+  // Phase-aware icon
+  const phaseIcon = () => {
+    switch (progressPhase) {
+      case 'loading-model': return <HardDrive size={20} className="text-amber-400" />
+      case 'loading-clip': return <Brain size={20} className="text-blue-400" />
+      case 'loading-vae': return <Cpu size={20} className="text-purple-400" />
+      case 'sampling': return <Zap size={20} className="text-green-400" />
+      case 'decoding': return <RefreshCw size={20} className="text-cyan-400" />
+      default: return null
+    }
+  }
+
+  const isLoading = progressPhase === 'loading-model' || progressPhase === 'loading-clip' || progressPhase === 'loading-vae'
+
   // Generating state
   if (isGenerating) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8">
         <div className="space-y-6 flex flex-col items-center">
-          {/* Minimal pulse ring animation */}
+          {/* Phase-aware animation */}
           <div className="relative w-16 h-16">
-            <motion.div
-              className="absolute inset-0 rounded-full border border-gray-300 dark:border-white/20"
-              animate={{ scale: [1, 1.8], opacity: [0.4, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
-            />
-            <motion.div
-              className="absolute inset-0 rounded-full border border-gray-300 dark:border-white/15"
-              animate={{ scale: [1, 1.5], opacity: [0.3, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeOut', delay: 0.5 }}
-            />
-            <div className="absolute inset-0 rounded-full border border-gray-200 dark:border-white/10 flex items-center justify-center">
-              <motion.div
-                className="w-2 h-2 rounded-full bg-gray-400 dark:bg-white/40"
-                animate={{ opacity: [0.3, 0.8, 0.3] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              />
-            </div>
+            {isLoading ? (
+              /* Slower breathing animation for model loading */
+              <>
+                <motion.div
+                  className="absolute inset-0 rounded-full border border-amber-400/30"
+                  animate={{ scale: [1, 1.6], opacity: [0.5, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'easeOut' }}
+                />
+                <div className="absolute inset-0 rounded-full border border-amber-400/20 flex items-center justify-center">
+                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}>
+                    {phaseIcon()}
+                  </motion.div>
+                </div>
+              </>
+            ) : progressPhase === 'sampling' ? (
+              /* Faster pulse for sampling */
+              <>
+                <motion.div
+                  className="absolute inset-0 rounded-full border border-green-400/30"
+                  animate={{ scale: [1, 1.8], opacity: [0.4, 0] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: 'easeOut' }}
+                />
+                <motion.div
+                  className="absolute inset-0 rounded-full border border-green-400/20"
+                  animate={{ scale: [1, 1.5], opacity: [0.3, 0] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: 'easeOut', delay: 0.3 }}
+                />
+                <div className="absolute inset-0 rounded-full border border-green-400/10 flex items-center justify-center">
+                  {phaseIcon()}
+                </div>
+              </>
+            ) : (
+              /* Default pulse */
+              <>
+                <motion.div
+                  className="absolute inset-0 rounded-full border border-gray-300 dark:border-white/20"
+                  animate={{ scale: [1, 1.8], opacity: [0.4, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+                />
+                <motion.div
+                  className="absolute inset-0 rounded-full border border-gray-300 dark:border-white/15"
+                  animate={{ scale: [1, 1.5], opacity: [0.3, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeOut', delay: 0.5 }}
+                />
+                <div className="absolute inset-0 rounded-full border border-gray-200 dark:border-white/10 flex items-center justify-center">
+                  <motion.div
+                    className="w-2 h-2 rounded-full bg-gray-400 dark:bg-white/40"
+                    animate={{ opacity: [0.3, 0.8, 0.3] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                </div>
+              </>
+            )}
           </div>
           <p className="text-gray-500 text-xs tracking-wide">{progressText || 'Generating...'}</p>
+          {/* Progress bar for sampling */}
+          {progressPhase === 'sampling' && progress > 0 && (
+            <div className="w-48 h-1 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-green-400 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(progress, 100)}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+          )}
         </div>
       </div>
     )
@@ -89,21 +146,22 @@ export function OutputDisplay() {
               controls
               autoPlay
               loop
-              className="max-w-full max-h-full rounded-xl border border-gray-200 dark:border-white/10 object-contain"
+              className="max-w-full max-h-full rounded-xl border border-gray-200 dark:border-white/10 object-contain cursor-pointer"
+              onClick={() => setViewerIndex(0)}
             />
           ) : (
             <img
               src={url}
               alt={latest.prompt}
               className="max-w-full max-h-full rounded-xl border border-gray-200 dark:border-white/10 object-contain cursor-pointer"
-              onClick={() => setFullscreen(latest)}
+              onClick={() => setViewerIndex(0)}
             />
           )}
 
           {/* Hover controls */}
           <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
             <button
-              onClick={() => setFullscreen(latest)}
+              onClick={() => setViewerIndex(0)}
               className="p-2 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors"
               title="Fullscreen"
             >
@@ -141,48 +199,14 @@ export function OutputDisplay() {
         </div>
       </div>
 
-      {/* Fullscreen overlay */}
-      <AnimatePresence>
-        {fullscreen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-            onClick={() => setFullscreen(null)}
-          >
-            <button
-              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 z-50"
-              onClick={() => setFullscreen(null)}
-            >
-              <X size={20} />
-            </button>
-            <button
-              className="absolute top-4 right-14 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 z-50"
-              onClick={(e) => { e.stopPropagation(); handleDownload(fullscreen) }}
-            >
-              <Download size={20} />
-            </button>
-            {fullscreen.type === 'video' ? (
-              <video
-                src={getImageUrl(fullscreen.filename, fullscreen.subfolder)}
-                controls
-                autoPlay
-                loop
-                className="max-w-[95vw] max-h-[95vh]"
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <img
-                src={getImageUrl(fullscreen.filename, fullscreen.subfolder)}
-                alt={fullscreen.prompt}
-                className="max-w-[95vw] max-h-[95vh] object-contain"
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Media Viewer */}
+      {viewerIndex !== null && (
+        <MediaViewer
+          gallery={gallery}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      )}
     </>
   )
 }

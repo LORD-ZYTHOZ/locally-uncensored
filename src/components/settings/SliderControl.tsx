@@ -9,11 +9,8 @@ interface Props {
 
 export function SliderControl({ label, value, min, max, step, onChange }: Props) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <label className="text-sm text-gray-300">{label}</label>
-        <span className="text-sm font-mono text-gray-300">{value}</span>
-      </div>
+    <div className="flex items-center gap-3">
+      <span className="text-[0.7rem] text-gray-500 dark:text-gray-400 w-20 shrink-0">{label}</span>
       <input
         type="range"
         min={min}
@@ -21,12 +18,9 @@ export function SliderControl({ label, value, min, max, step, onChange }: Props)
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full accent-white cursor-pointer"
+        className="flex-1 h-0.5 accent-gray-400 cursor-pointer"
       />
-      <div className="flex justify-between text-xs text-gray-600">
-        <span>{min}</span>
-        <span>{max}</span>
-      </div>
+      <span className="text-[0.65rem] font-mono text-gray-400 dark:text-gray-500 w-8 text-right">{value}</span>
     </div>
   )
 }

@@ -87,7 +87,7 @@ export function ModelManager() {
             >
               <ArrowLeft size={20} />
             </button>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Model Manager</h1>
+            <h1 className="text-[0.85rem] font-semibold text-gray-800 dark:text-gray-200">Model Manager</h1>
           </div>
           <div className="flex items-center gap-2">
             <GlowButton variant="secondary" onClick={fetchModels}>
@@ -185,13 +185,13 @@ export function ModelManager() {
 
         {tab === 'installed' && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-0.5">
               {filteredModels.map((model, i) => (
                 <motion.div
                   key={model.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: i * 0.02 }}
                 >
                   <ModelCard
                     model={model}

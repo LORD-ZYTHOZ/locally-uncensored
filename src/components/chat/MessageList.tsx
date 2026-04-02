@@ -5,9 +5,10 @@ import { TypingIndicator } from './TypingIndicator'
 
 interface Props {
   isGenerating: boolean
+  isLoadingModel?: boolean
 }
 
-export function MessageList({ isGenerating }: Props) {
+export function MessageList({ isGenerating, isLoadingModel }: Props) {
   const conversation = useChatStore((s) => {
     if (!s.activeConversationId) return undefined
     return s.conversations.find((c) => c.id === s.activeConversationId)
@@ -26,7 +27,7 @@ export function MessageList({ isGenerating }: Props) {
           <MessageBubble key={message.id} message={message} />
         ))}
       {isGenerating && lastMessage?.role === 'assistant' && lastMessage.content === '' && (
-        <TypingIndicator />
+        <TypingIndicator label={isLoadingModel ? 'Loading model...' : undefined} />
       )}
     </div>
   )

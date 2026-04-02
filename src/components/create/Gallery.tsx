@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Trash2, Download, ChevronDown, ChevronUp } from 'lucide-react'
 import { getImageUrl } from '../../api/comfyui'
+import { downloadComfyFile } from '../../api/backend'
 import { useCreateStore, type GalleryItem } from '../../stores/createStore'
+import { MediaViewer } from './MediaViewer'
 
 const PAGE_SIZE = 20
 
@@ -11,6 +13,7 @@ export function Gallery() {
   const [expanded, setExpanded] = useState(true)
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<GalleryItem | null>(null)
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
 
   if (gallery.length === 0) {
     return (
@@ -24,13 +27,7 @@ export function Gallery() {
   const visible = gallery.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   const handleDownload = (item: GalleryItem) => {
-    const url = getImageUrl(item.filename, item.subfolder)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = item.filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    downloadComfyFile(item.filename, item.subfolder)
   }
 
   return (
@@ -78,7 +75,11 @@ export function Gallery() {
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: i * 0.02 }}
-                      onClick={() => setSelected(selected?.id === item.id ? null : item)}
+                      onClick={() => {
+                        setSelected(selected?.id === item.id ? null : item)
+                        // Double-click opens viewer (single click selects)
+                      }}
+                      onDoubleClick={() => setViewerIndex(page * PAGE_SIZE + i)}
                     >
                       {item.type === 'video' ? (
                         <video
@@ -151,6 +152,15 @@ export function Gallery() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Media Viewer */}
+      {viewerIndex !== null && (
+        <MediaViewer
+          gallery={gallery}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      )}
     </>
   )
 }

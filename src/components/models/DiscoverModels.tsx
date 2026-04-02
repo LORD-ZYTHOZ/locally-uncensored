@@ -21,6 +21,73 @@ interface Props {
   category: ModelCategory
 }
 
+// Variant selector for text models with multiple sizes
+function VariantPullButton({ model, pullModel, isPulling, isInstalled }: {
+  model: DiscoverModel
+  pullModel: (name: string) => void
+  isPulling: boolean
+  isInstalled: (name: string) => boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const tags = model.tags.filter(t => /^\d+B/.test(t) || /^Q\d/.test(t))
+
+  // If no size tags or only one, show simple button
+  if (tags.length <= 1) {
+    const fullName = tags.length === 1 ? `${model.name}:${tags[0].toLowerCase()}` : model.name
+    if (isInstalled(model.name)) {
+      return <span className="text-xs text-green-500 px-2 py-1">Installed</span>
+    }
+    return (
+      <button
+        onClick={() => pullModel(fullName)}
+        disabled={isPulling}
+        className="p-2 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-700 dark:text-white disabled:opacity-30 transition-all"
+        title={`Install ${fullName}`}
+      >
+        <Download size={14} />
+      </button>
+    )
+  }
+
+  // Multiple variants → dropdown
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        disabled={isPulling}
+        className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-700 dark:text-white disabled:opacity-30 transition-all text-xs"
+      >
+        <Download size={12} />
+        <span>Install</span>
+        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 min-w-[120px] rounded-lg bg-gray-100 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-lg overflow-hidden">
+          {tags.map(tag => {
+            const fullName = `${model.name}:${tag.toLowerCase()}`
+            const installed = isInstalled(fullName)
+            return (
+              <button
+                key={tag}
+                onClick={() => { if (!installed) pullModel(fullName); setOpen(false) }}
+                disabled={installed || isPulling}
+                className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-gray-200 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+              >
+                <span className="text-gray-800 dark:text-white font-medium">{tag}</span>
+                {installed ? (
+                  <CheckCircle size={12} className="text-green-500" />
+                ) : (
+                  <Download size={12} className="text-gray-400" />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function DiscoverModels({ category }: Props) {
   const [textModels, setTextModels] = useState<DiscoverModel[]>([])
   const [civitaiResults, setCivitaiResults] = useState<CivitAIModelResult[]>([])
@@ -97,8 +164,11 @@ export function DiscoverModels({ category }: Props) {
     return match ? parseInt(match[1]) : 99
   }
 
-  // Sort bundles: recommended first (fits in VRAM), then by size ascending
+  // Sort bundles: HOT first, then recommended (fits VRAM), then by size
   const sortedBundles = [...bundles].sort((a, b) => {
+    // HOT models always first
+    if (a.hot && !b.hot) return -1
+    if (!a.hot && b.hot) return 1
     if (systemVRAM) {
       const aFits = parseVRAM(a.vramRequired) <= systemVRAM
       const bFits = parseVRAM(b.vramRequired) <= systemVRAM
@@ -324,7 +394,10 @@ export function DiscoverModels({ category }: Props) {
                 <GlassCard className="p-4">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{bundle.name}</h3>
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
+                        {bundle.hot && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-500 font-bold border border-orange-500/30">HOT</span>}
+                        {bundle.name}
+                      </h3>
                       <p className="text-xs text-gray-500 mt-0.5">{bundle.description}</p>
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         {bundle.tags.map(t => (
@@ -528,7 +601,11 @@ export function DiscoverModels({ category }: Props) {
                 <GlassCard className="p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{model.name}</h3>
+                      <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-1.5">
+                        {model.hot && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-500 font-bold border border-orange-500/30 shrink-0">HOT</span>}
+                        {model.agent && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-green-500/15 text-green-500 font-bold border border-green-500/30 shrink-0">AGENT</span>}
+                        <span className="truncate">{model.name}</span>
+                      </h3>
                       {model.description && (
                         <p className="text-xs text-gray-500 mt-0.5">{model.description}</p>
                       )}
@@ -565,19 +642,8 @@ export function DiscoverModels({ category }: Props) {
 
                     <div className="flex items-center gap-1 shrink-0">
                       {isText ? (
-                        // Ollama: direct install
-                        isInstalled(model.name) ? (
-                          <span className="text-xs text-green-500 px-2 py-1">Installed</span>
-                        ) : (
-                          <button
-                            onClick={() => pullModel(model.name)}
-                            disabled={isPulling}
-                            className="p-2 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-700 dark:text-white disabled:opacity-30 transition-all"
-                            title="Install model"
-                          >
-                            <Download size={14} />
-                          </button>
-                        )
+                        // Ollama: variant selector for multi-size models
+                        <VariantPullButton model={model} pullModel={pullModel} isPulling={isPulling} isInstalled={isInstalled} />
                       ) : (
                         // ComfyUI models
                         <>
