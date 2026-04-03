@@ -14,11 +14,15 @@ export function Header() {
     updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })
   }
 
-  const navBtn = (view: string, icon: React.ReactNode, title: string, isActive?: boolean) => (
+  const navBtn = (view: string, icon: React.ReactNode, title: string) => (
     <button
-      onClick={() => setView(view as any)}
+      onClick={() => {
+        // Always reset compare mode when navigating away
+        if (view !== 'chat' || view === 'chat') useCompareStore.getState().setComparing(false)
+        setView(view as any)
+      }}
       className={`p-1.5 rounded-md transition-colors ${
-        isActive ?? currentView === view
+        currentView === view && !isComparing
           ? 'bg-gray-200 dark:bg-white/10 text-gray-900 dark:text-white'
           : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5'
       }`}
@@ -64,7 +68,7 @@ export function Header() {
         >
           {settings.theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
         </button>
-        {navBtn('chat', <MessageSquare size={14} />, 'Chat', currentView === 'chat' && !isComparing)}
+        {navBtn('chat', <MessageSquare size={14} />, 'Chat')}
         {navBtn('create', <Film size={14} />, 'Create')}
         <button
           onClick={() => { useCompareStore.getState().setComparing(true); setView('chat') }}
