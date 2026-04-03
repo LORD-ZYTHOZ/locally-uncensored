@@ -2,6 +2,9 @@ import type { AgentToolDef, OllamaTool } from '../types/agent-mode'
 import { executeTool } from './agents'
 import { fetchExternal } from './backend'
 import type { ToolName } from '../types/agents'
+import { useAgentWorkflowStore } from '../stores/agentWorkflowStore'
+import { WorkflowEngine } from '../lib/workflow-engine'
+import type { StepResult } from '../types/agent-workflows'
 
 // ── Tool Definitions ──────────────────────────────────────────────
 
@@ -83,6 +86,19 @@ export const AGENT_TOOL_DEFS: AgentToolDef[] = [
     },
     permission: 'confirm',
   },
+  {
+    name: 'run_workflow',
+    description: 'Run a saved agent workflow by name. Available workflows: Research Topic, Summarize URL, Code Review, and any custom workflows.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Name of the workflow to run (e.g. "Research Topic", "Summarize URL", "Code Review")' },
+        input: { type: 'string', description: 'Initial input to provide to the workflow (e.g. a topic, URL, or file path)' },
+      },
+      required: ['name'],
+    },
+    permission: 'confirm',
+  },
 ]
 
 // ── Convert to Ollama Format ──────────────────────────────────────
@@ -119,6 +135,11 @@ export async function executeAgentTool(
     // Handle web_fetch separately (not in legacy agents.ts)
     if (name === 'web_fetch') {
       return await executeWebFetch(args.url, args.maxLength)
+    }
+
+    // Handle run_workflow
+    if (name === 'run_workflow') {
+      return await executeRunWorkflow(args.name, args.input)
     }
 
     // Reuse the existing executeTool from agents.ts for other tools
@@ -213,4 +234,42 @@ function htmlToText(html: string): string {
     .replace(/&nbsp;/g, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim()
+}
+
+// ── run_workflow: Execute a workflow by name ────────────────────
+
+async function executeRunWorkflow(workflowName: string, input?: string): Promise<string> {
+  if (!workflowName) return 'Error: No workflow name provided'
+
+  const store = useAgentWorkflowStore.getState()
+  const workflow = store.workflows.find(
+    w => w.name.toLowerCase() === workflowName.toLowerCase()
+  )
+
+  if (!workflow) {
+    const available = store.workflows.map(w => w.name).join(', ')
+    return `Error: Workflow "${workflowName}" not found. Available: ${available}`
+  }
+
+  // Run the workflow with a simple callback collector
+  const results: StepResult[] = []
+  let finalOutput = ''
+
+  const callbacks = {
+    onStepStart: () => {},
+    onStepComplete: (_idx: number, result: StepResult) => { results.push(result) },
+    onStepError: () => {},
+    onWaitingForInput: () => {},
+    onComplete: () => {
+      const lastOutput = results.filter(r => r.output).pop()
+      finalOutput = lastOutput?.output || 'Workflow completed with no output.'
+    },
+    onError: (error: string) => { finalOutput = `Workflow error: ${error}` },
+  }
+
+  const initialVars = input ? { user_input: input, last_output: input } : {}
+  const engine = new WorkflowEngine(workflow, 'tool-execution', callbacks, initialVars)
+
+  await engine.run()
+  return finalOutput
 }

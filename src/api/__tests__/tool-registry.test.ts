@@ -9,8 +9,8 @@ import {
 // ── AGENT_TOOL_DEFS ─────────────────────────────────────────────
 
 describe('AGENT_TOOL_DEFS', () => {
-  it('contains exactly 6 tool definitions', () => {
-    expect(AGENT_TOOL_DEFS).toHaveLength(6)
+  it('contains exactly 7 tool definitions', () => {
+    expect(AGENT_TOOL_DEFS).toHaveLength(7)
   })
 
   const expectedTools = [
@@ -20,6 +20,7 @@ describe('AGENT_TOOL_DEFS', () => {
     'file_write',
     'code_execute',
     'image_generate',
+    'run_workflow',
   ]
 
   it.each(expectedTools)('includes the "%s" tool', (name) => {
@@ -45,10 +46,10 @@ describe('AGENT_TOOL_DEFS', () => {
     expect(autoNames).toEqual(['file_read', 'web_fetch', 'web_search'])
   })
 
-  it('confirm-permission tools are file_write, code_execute, image_generate', () => {
+  it('confirm-permission tools are file_write, code_execute, image_generate, run_workflow', () => {
     const confirmTools = AGENT_TOOL_DEFS.filter((t) => t.permission === 'confirm')
     const confirmNames = confirmTools.map((t) => t.name).sort()
-    expect(confirmNames).toEqual(['code_execute', 'file_write', 'image_generate'])
+    expect(confirmNames).toEqual(['code_execute', 'file_write', 'image_generate', 'run_workflow'])
   })
 })
 

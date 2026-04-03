@@ -1,52 +1,176 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuid } from 'uuid'
-import type { MemoryEntry, MemoryCategory } from '../types/agent-mode'
+import type { MemoryEntry, MemoryCategory, MemoryFile, MemoryType, MemorySettings } from '../types/agent-mode'
+import { MEMORY_MIGRATION_MAP, MEMORY_BUDGET_TIERS } from '../types/agent-mode'
+
+// ── Memory Budget Helper ──────────────────────────────────────
+
+export function getMemoryBudget(contextTokens: number) {
+  for (const tier of MEMORY_BUDGET_TIERS) {
+    if (contextTokens <= tier.maxContext) return tier
+  }
+  return MEMORY_BUDGET_TIERS[MEMORY_BUDGET_TIERS.length - 1]
+}
+
+// ── Search Scoring ────────────────────────────────────────────
+
+function scoreMemory(memory: MemoryFile, queryWords: string[]): number {
+  if (queryWords.length === 0) return 1
+
+  const titleLower = memory.title.toLowerCase()
+  const descLower = memory.description.toLowerCase()
+  const contentLower = memory.content.toLowerCase()
+  const tagsLower = memory.tags.map(t => t.toLowerCase())
+
+  let score = 0
+  for (const w of queryWords) {
+    if (titleLower.includes(w)) score += 4
+    if (descLower.includes(w)) score += 3
+    if (tagsLower.some(t => t.includes(w))) score += 3
+    if (contentLower.includes(w)) score += 1
+  }
+
+  // Bonuses only apply when there's at least one word match
+  if (score > 0) {
+    // Recency bonus
+    const age = Date.now() - memory.updatedAt
+    const oneDay = 86400000
+    if (age < oneDay) score += 2
+    else if (age < 7 * oneDay) score += 1
+
+    // User and feedback types get slight boost (most actionable)
+    if (memory.type === 'user' || memory.type === 'feedback') score += 0.5
+  }
+
+  return score
+}
+
+// ── Type Labels ───────────────────────────────────────────────
+
+const TYPE_SECTION_HEADERS: Record<MemoryType, string> = {
+  user: 'About the user',
+  feedback: 'User feedback / corrections',
+  project: 'Project context',
+  reference: 'References',
+}
+
+// ── Store Interface ───────────────────────────────────────────
 
 interface MemoryState {
-  entries: MemoryEntry[]
+  entries: MemoryFile[]
+  settings: MemorySettings
   lastSynced: number
 
-  // Actions
-  addEntry: (category: MemoryCategory, content: string, source?: string) => void
-  removeEntry: (id: string) => void
+  // CRUD
+  addMemory: (memory: Omit<MemoryFile, 'id' | 'createdAt' | 'updatedAt'>) => string
+  updateMemory: (id: string, updates: Partial<Pick<MemoryFile, 'title' | 'description' | 'content' | 'type' | 'tags'>>) => void
+  removeMemory: (id: string) => void
   clearAll: () => void
-  searchMemory: (query: string) => MemoryEntry[]
-  getMemoryForPrompt: (query: string, maxChars?: number) => string
+
+  // Search & Inject
+  searchMemories: (query: string, options?: { type?: MemoryType; limit?: number }) => MemoryFile[]
+  getMemoriesForPrompt: (query: string, contextTokens: number) => string
+
+  // Settings
+  updateMemorySettings: (updates: Partial<MemorySettings>) => void
+
+  // Export / Import
   exportAsMarkdown: () => string
   importFromMarkdown: (markdown: string) => void
+  exportAsJSON: () => string
+  importFromJSON: (json: string) => void
+
+  // Legacy compat (used by old code paths during transition)
+  addEntry: (category: MemoryCategory, content: string, source?: string) => void
+  getMemoryForPrompt: (query: string, maxChars?: number) => string
 }
+
+// ── Migration from v1 (old MemoryEntry[]) to v2 (MemoryFile[]) ──
+
+function migrateV1toV2(oldState: any): any {
+  if (!oldState || !Array.isArray(oldState.entries)) return oldState
+
+  // Check if already migrated (MemoryFile has 'type' field)
+  if (oldState.entries.length > 0 && 'type' in oldState.entries[0]) {
+    return oldState
+  }
+
+  // Migrate old MemoryEntry[] to MemoryFile[]
+  const migratedEntries: MemoryFile[] = (oldState.entries as MemoryEntry[]).map((e) => ({
+    id: e.id,
+    type: MEMORY_MIGRATION_MAP[e.category] || 'project',
+    title: e.content.substring(0, 60).replace(/\n/g, ' '),
+    description: e.content.substring(0, 120).replace(/\n/g, ' '),
+    content: e.content,
+    tags: e.source ? [e.source] : [],
+    createdAt: e.timestamp,
+    updatedAt: e.timestamp,
+    source: e.source || 'migration',
+  }))
+
+  return {
+    ...oldState,
+    entries: migratedEntries,
+    settings: {
+      autoExtractEnabled: true,
+      autoExtractInAllModes: true,
+      maxMemoriesInPrompt: 10,
+      maxMemoryChars: 3000,
+    },
+  }
+}
+
+// ── Store ─────────────────────────────────────────────────────
 
 export const useMemoryStore = create<MemoryState>()(
   persist(
     (set, get) => ({
       entries: [],
+      settings: {
+        autoExtractEnabled: true,
+        autoExtractInAllModes: true,
+        maxMemoriesInPrompt: 10,
+        maxMemoryChars: 3000,
+      },
       lastSynced: 0,
 
-      addEntry: (category, content, source) => {
-        const trimmed = content.trim()
-        if (!trimmed) return
+      // ── CRUD ────────────────────────────────────────────────
 
-        // Deduplicate: don't add if exact same content already exists
+      addMemory: (memory) => {
+        const trimmedContent = memory.content.trim()
+        if (!trimmedContent) return ''
+
+        // Deduplicate: don't add if exact same content + type exists
         const existing = get().entries
-        if (existing.some(e => e.content === trimmed && e.category === category)) return
+        if (existing.some(e => e.content === trimmedContent && e.type === memory.type)) return ''
 
+        const id = uuid()
         set((state) => ({
           entries: [
             ...state.entries,
             {
-              id: uuid(),
-              category,
-              content: trimmed,
-              timestamp: Date.now(),
-              source,
+              ...memory,
+              id,
+              content: trimmedContent,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
             },
           ],
           lastSynced: Date.now(),
         }))
+        return id
       },
 
-      removeEntry: (id) =>
+      updateMemory: (id, updates) =>
+        set((state) => ({
+          entries: state.entries.map((e) =>
+            e.id === id ? { ...e, ...updates, updatedAt: Date.now() } : e
+          ),
+          lastSynced: Date.now(),
+        })),
+
+      removeMemory: (id) =>
         set((state) => ({
           entries: state.entries.filter((e) => e.id !== id),
           lastSynced: Date.now(),
@@ -54,66 +178,114 @@ export const useMemoryStore = create<MemoryState>()(
 
       clearAll: () => set({ entries: [], lastSynced: Date.now() }),
 
-      searchMemory: (query) => {
-        const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2)
-        if (words.length === 0) return get().entries.slice(-20) // return recent
+      // ── Search ──────────────────────────────────────────────
 
-        return get().entries
-          .map((entry) => {
-            const text = entry.content.toLowerCase()
-            const score = words.reduce((s, w) => s + (text.includes(w) ? 1 : 0), 0)
-            return { entry, score }
-          })
+      searchMemories: (query, options) => {
+        const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+        let results = get().entries
+
+        // Filter by type
+        if (options?.type) {
+          results = results.filter(e => e.type === options.type)
+        }
+
+        // Score and sort
+        const scored = results
+          .map((entry) => ({ entry, score: scoreMemory(entry, words) }))
           .filter(({ score }) => score > 0)
           .sort((a, b) => b.score - a.score)
-          .map(({ entry }) => entry)
+
+        const limit = options?.limit || 20
+        return scored.slice(0, limit).map(({ entry }) => entry)
       },
 
-      getMemoryForPrompt: (query, maxChars = 2000) => {
-        const relevant = get().searchMemory(query)
-        if (relevant.length === 0) return ''
+      // ── Context-Aware Prompt Injection ──────────────────────
 
-        const categoryLabels: Record<MemoryCategory, string> = {
-          fact: 'Known fact',
-          tool_result: 'Previous result',
-          decision: 'Decision',
-          context: 'Context',
+      getMemoriesForPrompt: (query, contextTokens) => {
+        const budget = getMemoryBudget(contextTokens)
+
+        // No budget for tiny models
+        if (budget.budgetTokens === 0 || budget.maxMemories === 0) return ''
+
+        const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+        let candidates = get().entries
+
+        // Filter by allowed types for this tier
+        if (budget.typesAllowed !== 'all') {
+          candidates = candidates.filter(e => (budget.typesAllowed as MemoryType[]).includes(e.type))
         }
 
+        // Score and sort
+        const scored = candidates
+          .map((entry) => ({ entry, score: scoreMemory(entry, words) }))
+          .filter(({ score }) => score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, budget.maxMemories)
+
+        if (scored.length === 0) return ''
+
+        // Group by type for structured output
+        const grouped: Record<MemoryType, MemoryFile[]> = {
+          user: [], feedback: [], project: [], reference: [],
+        }
+        for (const { entry } of scored) {
+          grouped[entry.type].push(entry)
+        }
+
+        // Build output within char budget (tokens * 4 chars/token)
+        const maxChars = budget.budgetTokens * 4
         let result = ''
-        for (const entry of relevant) {
-          const line = `- [${categoryLabels[entry.category]}] ${entry.content}\n`
-          if (result.length + line.length > maxChars) break
-          result += line
+        const typeOrder: MemoryType[] = ['user', 'feedback', 'project', 'reference']
+
+        for (const type of typeOrder) {
+          const items = grouped[type]
+          if (items.length === 0) continue
+
+          const header = `### ${TYPE_SECTION_HEADERS[type]}\n`
+          if (result.length + header.length > maxChars) break
+          result += header
+
+          for (const item of items) {
+            const line = `- ${item.title}: ${item.content.substring(0, 200).replace(/\n/g, ' ')}\n`
+            if (result.length + line.length > maxChars) break
+            result += line
+          }
+          result += '\n'
         }
 
-        return result
+        return result.trim()
       },
+
+      // ── Settings ────────────────────────────────────────────
+
+      updateMemorySettings: (updates) =>
+        set((state) => ({
+          settings: { ...state.settings, ...updates },
+        })),
+
+      // ── Export / Import ─────────────────────────────────────
 
       exportAsMarkdown: () => {
         const entries = get().entries
-        if (entries.length === 0) return '# Agent Memory\n\nNo entries yet.\n'
+        if (entries.length === 0) return '# Memory\n\nNo entries yet.\n'
 
-        const categoryOrder: MemoryCategory[] = ['fact', 'tool_result', 'decision', 'context']
-        const categoryTitles: Record<MemoryCategory, string> = {
-          fact: 'Facts',
-          tool_result: 'Tool Results',
-          decision: 'Decisions',
-          context: 'Context',
+        const typeOrder: MemoryType[] = ['user', 'feedback', 'project', 'reference']
+        const typeTitles: Record<MemoryType, string> = {
+          user: 'User', feedback: 'Feedback', project: 'Project', reference: 'References',
         }
 
-        let md = '# Agent Memory\n\n'
+        let md = '# Memory\n\n'
 
-        for (const cat of categoryOrder) {
-          const catEntries = entries.filter(e => e.category === cat)
-          if (catEntries.length === 0) continue
+        for (const type of typeOrder) {
+          const typeEntries = entries.filter(e => e.type === type)
+          if (typeEntries.length === 0) continue
 
-          md += `## ${categoryTitles[cat]}\n\n`
-          for (const entry of catEntries) {
-            const date = new Date(entry.timestamp).toLocaleDateString()
-            md += `- ${entry.content}`
-            if (entry.source) md += ` *(${entry.source})*`
-            md += ` — ${date}\n`
+          md += `## ${typeTitles[type]}\n\n`
+          for (const entry of typeEntries) {
+            const date = new Date(entry.updatedAt).toLocaleDateString()
+            md += `- **${entry.title}** — ${entry.content}`
+            if (entry.tags.length > 0) md += ` [${entry.tags.join(', ')}]`
+            md += ` *(${entry.source})* — ${date}\n`
           }
           md += '\n'
         }
@@ -123,38 +295,40 @@ export const useMemoryStore = create<MemoryState>()(
 
       importFromMarkdown: (markdown) => {
         const lines = markdown.split('\n')
-        const newEntries: MemoryEntry[] = []
-        let currentCategory: MemoryCategory = 'fact'
+        const newEntries: MemoryFile[] = []
+        let currentType: MemoryType = 'user'
 
-        const categoryMap: Record<string, MemoryCategory> = {
-          'facts': 'fact',
-          'tool results': 'tool_result',
-          'decisions': 'decision',
-          'context': 'context',
+        const typeMap: Record<string, MemoryType> = {
+          'user': 'user', 'feedback': 'feedback', 'project': 'project', 'references': 'reference',
+          // Legacy support
+          'facts': 'user', 'tool results': 'reference', 'decisions': 'project', 'context': 'project',
         }
 
         for (const line of lines) {
-          // Detect category headers
           const headerMatch = line.match(/^##\s+(.+)/)
           if (headerMatch) {
             const header = headerMatch[1].toLowerCase().trim()
-            if (categoryMap[header]) {
-              currentCategory = categoryMap[header]
-            }
+            if (typeMap[header]) currentType = typeMap[header]
             continue
           }
 
-          // Parse list items
-          const itemMatch = line.match(/^-\s+(.+?)(?:\s+\*\((.+?)\)\*)?(?:\s+—\s+.+)?$/)
+          const itemMatch = line.match(/^-\s+(?:\*\*(.+?)\*\*\s*—\s*)?(.+?)(?:\s+\[(.+?)\])?(?:\s+\*\((.+?)\)\*)?(?:\s+—\s+.+)?$/)
           if (itemMatch) {
-            const content = itemMatch[1].trim()
-            const source = itemMatch[2] || 'import'
+            const title = itemMatch[1] || itemMatch[2].substring(0, 60)
+            const content = itemMatch[2].trim()
+            const tags = itemMatch[3] ? itemMatch[3].split(',').map(t => t.trim()) : []
+            const source = itemMatch[4] || 'import'
+
             if (content) {
               newEntries.push({
                 id: uuid(),
-                category: currentCategory,
+                type: currentType,
+                title: title.substring(0, 60),
+                description: content.substring(0, 120),
                 content,
-                timestamp: Date.now(),
+                tags,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
                 source,
               })
             }
@@ -168,7 +342,59 @@ export const useMemoryStore = create<MemoryState>()(
           }))
         }
       },
+
+      exportAsJSON: () => {
+        const { entries, settings } = get()
+        return JSON.stringify({ entries, settings }, null, 2)
+      },
+
+      importFromJSON: (json) => {
+        try {
+          const data = JSON.parse(json)
+          if (Array.isArray(data.entries)) {
+            set((state) => ({
+              entries: [...state.entries, ...data.entries],
+              lastSynced: Date.now(),
+            }))
+          }
+        } catch {
+          console.error('Failed to parse memory JSON import')
+        }
+      },
+
+      // ── Legacy Compat ───────────────────────────────────────
+
+      addEntry: (category, content, source) => {
+        const type = MEMORY_MIGRATION_MAP[category] || 'project'
+        get().addMemory({
+          type,
+          title: content.substring(0, 60).replace(/\n/g, ' '),
+          description: content.substring(0, 120).replace(/\n/g, ' '),
+          content,
+          tags: source ? [source] : [],
+          source: source || 'agent',
+        })
+      },
+
+      getMemoryForPrompt: (query, maxChars = 2000) => {
+        // Legacy: assume 8K context for backward compat
+        return get().getMemoriesForPrompt(query, 8192)
+      },
     }),
-    { name: 'locally-uncensored-memory' }
+    {
+      name: 'locally-uncensored-memory',
+      version: 2,
+      migrate: (persistedState, version) => {
+        if (version < 2) {
+          return migrateV1toV2(persistedState)
+        }
+        return persistedState as MemoryState
+      },
+      partialize: (state) => ({
+        entries: state.entries,
+        settings: state.settings,
+        lastSynced: state.lastSynced,
+      }),
+    }
   )
 )

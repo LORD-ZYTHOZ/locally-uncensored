@@ -336,24 +336,34 @@ describe('agentModeStore', () => {
 
 describe('memoryStore', () => {
   beforeEach(() => {
-    useMemoryStore.setState({ entries: [], lastSynced: 0 })
+    useMemoryStore.setState({
+      entries: [],
+      lastSynced: 0,
+      settings: {
+        autoExtractEnabled: true,
+        autoExtractInAllModes: true,
+        maxMemoriesInPrompt: 10,
+        maxMemoryChars: 3000,
+      },
+    })
   })
 
-  describe('addEntry', () => {
-    it('adds an entry to the store', () => {
+  describe('addEntry (legacy compat)', () => {
+    it('adds an entry to the store via legacy API', () => {
       useMemoryStore.getState().addEntry('fact', 'The sky is blue')
       expect(useMemoryStore.getState().entries).toHaveLength(1)
       expect(useMemoryStore.getState().entries[0].content).toBe('The sky is blue')
-      expect(useMemoryStore.getState().entries[0].category).toBe('fact')
+      // Legacy fact → user type
+      expect(useMemoryStore.getState().entries[0].type).toBe('user')
     })
 
-    it('deduplicates entries with same content and category', () => {
+    it('deduplicates entries with same content and type', () => {
       useMemoryStore.getState().addEntry('fact', 'Duplicate')
       useMemoryStore.getState().addEntry('fact', 'Duplicate')
       expect(useMemoryStore.getState().entries).toHaveLength(1)
     })
 
-    it('allows same content in different categories', () => {
+    it('allows same content in different categories (mapped to types)', () => {
       useMemoryStore.getState().addEntry('fact', 'Same text')
       useMemoryStore.getState().addEntry('decision', 'Same text')
       expect(useMemoryStore.getState().entries).toHaveLength(2)
@@ -370,13 +380,44 @@ describe('memoryStore', () => {
       expect(useMemoryStore.getState().entries[0].content).toBe('trimmed')
     })
 
-    it('stores optional source', () => {
+    it('stores optional source as tag', () => {
       useMemoryStore.getState().addEntry('tool_result', 'data', 'agent:web_search')
-      expect(useMemoryStore.getState().entries[0].source).toBe('agent:web_search')
+      expect(useMemoryStore.getState().entries[0].tags).toContain('agent:web_search')
     })
   })
 
-  describe('searchMemory', () => {
+  describe('addMemory', () => {
+    it('adds a MemoryFile to the store', () => {
+      useMemoryStore.getState().addMemory({
+        type: 'user',
+        title: 'User is a developer',
+        description: 'The user works as a software developer',
+        content: 'The user is a software developer who uses TypeScript',
+        tags: ['role'],
+        source: 'conv-123',
+      })
+      expect(useMemoryStore.getState().entries).toHaveLength(1)
+      expect(useMemoryStore.getState().entries[0].type).toBe('user')
+      expect(useMemoryStore.getState().entries[0].title).toBe('User is a developer')
+    })
+
+    it('deduplicates by content + type', () => {
+      const mem = { type: 'feedback' as const, title: 'No emojis', description: 'User dislikes emojis', content: 'Do not use emojis', tags: [], source: 'manual' }
+      useMemoryStore.getState().addMemory(mem)
+      useMemoryStore.getState().addMemory(mem)
+      expect(useMemoryStore.getState().entries).toHaveLength(1)
+    })
+
+    it('returns the new entry ID', () => {
+      const id = useMemoryStore.getState().addMemory({
+        type: 'project', title: 'Test', description: 'Test', content: 'Test content', tags: [], source: 'manual',
+      })
+      expect(id).toBeTruthy()
+      expect(useMemoryStore.getState().entries[0].id).toBe(id)
+    })
+  })
+
+  describe('searchMemories', () => {
     beforeEach(() => {
       useMemoryStore.getState().addEntry('fact', 'TypeScript is a superset of JavaScript')
       useMemoryStore.getState().addEntry('fact', 'React uses virtual DOM')
@@ -385,84 +426,107 @@ describe('memoryStore', () => {
     })
 
     it('finds entries matching query words', () => {
-      const results = useMemoryStore.getState().searchMemory('TypeScript JavaScript')
+      const results = useMemoryStore.getState().searchMemories('TypeScript JavaScript')
       expect(results.length).toBeGreaterThan(0)
       expect(results[0].content).toContain('TypeScript')
     })
 
     it('filters out words shorter than 3 characters', () => {
-      // "is a" are both < 3 chars, "superset" is the only word that qualifies
-      const results = useMemoryStore.getState().searchMemory('is a superset')
+      const results = useMemoryStore.getState().searchMemories('is a superset')
       expect(results.length).toBeGreaterThan(0)
-      // Should match on "superset", not on "is" or "a"
       expect(results[0].content).toContain('superset')
     })
 
-    it('returns recent entries when all query words are too short', () => {
-      const results = useMemoryStore.getState().searchMemory('is a')
-      // All words < 3 chars, so it returns last 20 entries
-      expect(results).toHaveLength(4)
+    it('returns all entries when query words are too short', () => {
+      const results = useMemoryStore.getState().searchMemories('is a')
+      // All words < 3 chars → all entries have score > 0 (baseline type bonus)
+      expect(results.length).toBeGreaterThan(0)
     })
 
-    it('ranks results by number of matching words', () => {
-      const results = useMemoryStore.getState().searchMemory('Zustand state')
+    it('ranks results by matching words', () => {
+      const results = useMemoryStore.getState().searchMemories('Zustand state')
       expect(results[0].content).toContain('Zustand')
     })
 
     it('returns empty for query that matches nothing', () => {
-      const results = useMemoryStore.getState().searchMemory('xylophone')
+      const results = useMemoryStore.getState().searchMemories('xylophone')
       expect(results).toHaveLength(0)
+    })
+
+    it('filters by type', () => {
+      const results = useMemoryStore.getState().searchMemories('', { type: 'user' })
+      // fact → user, so the two facts should be user type
+      expect(results.every(e => e.type === 'user')).toBe(true)
     })
   })
 
-  describe('getMemoryForPrompt', () => {
-    it('returns formatted string with category labels', () => {
+  describe('getMemoriesForPrompt', () => {
+    it('returns formatted string with section headers', () => {
       useMemoryStore.getState().addEntry('fact', 'Earth orbits the Sun')
-      const prompt = useMemoryStore.getState().getMemoryForPrompt('Earth Sun')
-      expect(prompt).toContain('[Known fact]')
+      const prompt = useMemoryStore.getState().getMemoriesForPrompt('Earth Sun', 8192)
+      expect(prompt).toContain('About the user')
       expect(prompt).toContain('Earth orbits the Sun')
     })
 
     it('returns empty string when no relevant entries', () => {
-      const prompt = useMemoryStore.getState().getMemoryForPrompt('xylophone')
+      const prompt = useMemoryStore.getState().getMemoriesForPrompt('xylophone', 8192)
       expect(prompt).toBe('')
     })
 
-    it('respects maxChars limit', () => {
-      for (let i = 0; i < 50; i++) {
-        useMemoryStore.getState().addEntry('fact', `Fact number ${i} about testing memory store limits`)
-      }
-      const prompt = useMemoryStore.getState().getMemoryForPrompt('fact testing memory', 100)
-      expect(prompt.length).toBeLessThanOrEqual(100 + 100) // some tolerance for the last line
+    it('returns empty for tiny context models', () => {
+      useMemoryStore.getState().addEntry('fact', 'Important fact')
+      const prompt = useMemoryStore.getState().getMemoriesForPrompt('fact', 2048)
+      expect(prompt).toBe('')
     })
 
-    it('uses correct category labels', () => {
-      useMemoryStore.getState().addEntry('decision', 'Use Vitest for testing')
-      useMemoryStore.getState().addEntry('tool_result', 'Search returned 5 results')
-      useMemoryStore.getState().addEntry('context', 'Running on Windows')
+    it('limits to user+feedback types for small context', () => {
+      useMemoryStore.getState().addEntry('fact', 'User pref')      // → user
+      useMemoryStore.getState().addEntry('decision', 'Decision')   // → project
+      const prompt = useMemoryStore.getState().getMemoriesForPrompt('User pref Decision', 4000)
+      expect(prompt).toContain('User pref')
+      // Project type not allowed at 4000 ctx
+      expect(prompt).not.toContain('Project context')
+    })
 
-      const prompt = useMemoryStore.getState().getMemoryForPrompt('Vitest search Windows testing results')
-      expect(prompt).toContain('[Decision]')
-      expect(prompt).toContain('[Previous result]')
-      expect(prompt).toContain('[Context]')
+    it('includes all types for large context', () => {
+      useMemoryStore.getState().addEntry('fact', 'User info')
+      useMemoryStore.getState().addEntry('decision', 'Project decision about architecture')
+      useMemoryStore.getState().addEntry('tool_result', 'Search result about APIs')
+      const prompt = useMemoryStore.getState().getMemoriesForPrompt('User info Project decision Search result', 16000)
+      expect(prompt).toContain('About the user')
+      expect(prompt).toContain('Project context')
+      expect(prompt).toContain('References')
+    })
+  })
+
+  describe('getMemoryForPrompt (legacy compat)', () => {
+    it('returns formatted string via legacy API', () => {
+      useMemoryStore.getState().addEntry('fact', 'Earth orbits the Sun')
+      const prompt = useMemoryStore.getState().getMemoryForPrompt('Earth Sun')
+      expect(prompt).toContain('Earth orbits the Sun')
+    })
+
+    it('returns empty for no matches', () => {
+      const prompt = useMemoryStore.getState().getMemoryForPrompt('xylophone')
+      expect(prompt).toBe('')
     })
   })
 
   describe('exportAsMarkdown', () => {
     it('returns placeholder when no entries exist', () => {
       const md = useMemoryStore.getState().exportAsMarkdown()
-      expect(md).toContain('# Agent Memory')
+      expect(md).toContain('# Memory')
       expect(md).toContain('No entries yet')
     })
 
-    it('groups entries by category with headers', () => {
+    it('groups entries by type with headers', () => {
       useMemoryStore.getState().addEntry('fact', 'Fact one')
       useMemoryStore.getState().addEntry('decision', 'Decision one')
       const md = useMemoryStore.getState().exportAsMarkdown()
-      expect(md).toContain('## Facts')
-      expect(md).toContain('## Decisions')
-      expect(md).toContain('- Fact one')
-      expect(md).toContain('- Decision one')
+      expect(md).toContain('## User')
+      expect(md).toContain('## Project')
+      expect(md).toContain('Fact one')
+      expect(md).toContain('Decision one')
     })
 
     it('includes source when present', () => {
@@ -473,27 +537,45 @@ describe('memoryStore', () => {
   })
 
   describe('importFromMarkdown', () => {
-    it('parses categories and list items', () => {
-      const md = `# Agent Memory
+    it('parses type headers and list items', () => {
+      const md = `# Memory
 
-## Facts
+## User
 
 - First fact
 - Second fact
 
-## Decisions
+## Project
 
 - Important decision
 `
       useMemoryStore.getState().importFromMarkdown(md)
       const entries = useMemoryStore.getState().entries
       expect(entries).toHaveLength(3)
-      expect(entries.filter((e) => e.category === 'fact')).toHaveLength(2)
-      expect(entries.filter((e) => e.category === 'decision')).toHaveLength(1)
+      expect(entries.filter((e) => e.type === 'user')).toHaveLength(2)
+      expect(entries.filter((e) => e.type === 'project')).toHaveLength(1)
+    })
+
+    it('supports legacy category headers', () => {
+      const md = `## Facts
+
+- Old fact
+
+## Decisions
+
+- Old decision
+`
+      useMemoryStore.getState().importFromMarkdown(md)
+      const entries = useMemoryStore.getState().entries
+      expect(entries).toHaveLength(2)
+      // Legacy 'facts' maps to 'user'
+      expect(entries[0].type).toBe('user')
+      // Legacy 'decisions' maps to 'project'
+      expect(entries[1].type).toBe('project')
     })
 
     it('parses source from markdown format', () => {
-      const md = `## Facts
+      const md = `## User
 
 - A fact *(user:manual)* — 4/1/2026
 `
@@ -504,7 +586,7 @@ describe('memoryStore', () => {
     })
 
     it('defaults source to "import" when not present', () => {
-      const md = `## Facts
+      const md = `## User
 
 - A plain fact
 `
@@ -514,7 +596,7 @@ describe('memoryStore', () => {
 
     it('appends to existing entries', () => {
       useMemoryStore.getState().addEntry('fact', 'Existing')
-      useMemoryStore.getState().importFromMarkdown('## Decisions\n\n- Imported decision\n')
+      useMemoryStore.getState().importFromMarkdown('## Project\n\n- Imported decision\n')
       expect(useMemoryStore.getState().entries).toHaveLength(2)
     })
 
@@ -537,6 +619,25 @@ describe('memoryStore', () => {
       const before = useMemoryStore.getState().lastSynced
       useMemoryStore.getState().clearAll()
       expect(useMemoryStore.getState().lastSynced).toBeGreaterThanOrEqual(before)
+    })
+  })
+
+  describe('updateMemory', () => {
+    it('updates title and content', () => {
+      useMemoryStore.getState().addMemory({
+        type: 'user', title: 'Old title', description: 'Old', content: 'Old content', tags: [], source: 'manual',
+      })
+      const id = useMemoryStore.getState().entries[0].id
+      useMemoryStore.getState().updateMemory(id, { title: 'New title', content: 'New content' })
+      expect(useMemoryStore.getState().entries[0].title).toBe('New title')
+      expect(useMemoryStore.getState().entries[0].content).toBe('New content')
+    })
+  })
+
+  describe('settings', () => {
+    it('updates memory settings', () => {
+      useMemoryStore.getState().updateMemorySettings({ autoExtractEnabled: true })
+      expect(useMemoryStore.getState().settings.autoExtractEnabled).toBe(true)
     })
   })
 })

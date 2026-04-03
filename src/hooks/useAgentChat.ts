@@ -15,8 +15,38 @@ import { buildHermesToolPrompt, buildHermesToolResult, parseHermesToolCalls, str
 import { compactMessages, getModelMaxTokens } from '../lib/context-compaction'
 import { useMemoryStore } from '../stores/memoryStore'
 import { getProviderForModel, getProviderIdFromModel } from '../api/providers'
+import { buildExtractionPrompt, parseExtractionResponse } from '../lib/memory-extraction'
+import { useAgentWorkflowStore } from '../stores/agentWorkflowStore'
+import { WorkflowEngine } from '../lib/workflow-engine'
 import type { AgentBlock, AgentToolCall, OllamaChatMessage } from '../types/agent-mode'
 import type { ChatMessage, ToolCall, ToolDefinition } from '../api/providers/types'
+import type { StepResult, WorkflowEngineCallbacks } from '../types/agent-workflows'
+
+// ── Standalone memory extraction (usable outside React hooks) ──
+
+async function extractMemories(userMsg: string, assistantMsg: string, conversationId: string) {
+  const { activeModel } = useModelStore.getState()
+  if (!activeModel) return
+
+  const memState = useMemoryStore.getState()
+  const existingSummary = memState.entries.slice(-20).map(e => `- [${e.type}] ${e.title}`).join('\n')
+  const messages = buildExtractionPrompt(userMsg, assistantMsg, existingSummary)
+
+  const { provider, modelId } = getProviderForModel(activeModel)
+  let fullResponse = ''
+  const stream = provider.chatStream(modelId, messages, { temperature: 0.1, maxTokens: 500 })
+  for await (const chunk of stream) {
+    if (chunk.content) fullResponse += chunk.content
+    if (chunk.done) break
+  }
+
+  const result = parseExtractionResponse(fullResponse)
+  if (result.shouldSave) {
+    for (const memory of result.memories) {
+      memState.addMemory({ ...memory, source: conversationId })
+    }
+  }
+}
 
 // ── Approval promise management ───────────────────────────────
 
@@ -86,6 +116,56 @@ export function useAgentChat() {
     const persona = useSettingsStore.getState().getActivePersona()
 
     if (!activeModel) return
+
+    // ── Workflow trigger detection ──────────────────────────
+    const workflowMatch = userContent.match(/^run\s+workflow\s+(.+)$/i)
+    if (workflowMatch) {
+      const workflowName = workflowMatch[1].trim()
+      const wfStore = useAgentWorkflowStore.getState()
+      const workflow = wfStore.workflows.find(
+        w => w.name.toLowerCase() === workflowName.toLowerCase()
+      )
+      if (workflow) {
+        // Delegate to workflow engine
+        let convId = store.activeConversationId
+        if (!convId) {
+          convId = store.createConversation(activeModel, persona?.systemPrompt || '')
+        }
+        useChatStore.getState().addMessage(convId, {
+          id: uuid(), role: 'user', content: userContent, timestamp: Date.now(),
+        })
+        useChatStore.getState().addMessage(convId, {
+          id: uuid(), role: 'assistant', content: `Running workflow: **${workflow.name}**...`, timestamp: Date.now(),
+        })
+
+        const results: StepResult[] = []
+        const callbacks: WorkflowEngineCallbacks = {
+          onStepStart: () => {},
+          onStepComplete: (_i, r) => { results.push(r) },
+          onStepError: () => {},
+          onWaitingForInput: () => {},
+          onComplete: () => {
+            const lastOutput = results.filter(r => r.output).pop()
+            if (lastOutput && convId) {
+              useChatStore.getState().addMessage(convId, {
+                id: uuid(), role: 'assistant', content: lastOutput.output, timestamp: Date.now(),
+              })
+            }
+          },
+          onError: (err) => {
+            if (convId) {
+              useChatStore.getState().addMessage(convId, {
+                id: uuid(), role: 'assistant', content: `Workflow error: ${err}`, timestamp: Date.now(),
+              })
+            }
+          },
+        }
+
+        const engine = new WorkflowEngine(workflow, convId, callbacks)
+        await engine.run()
+        return
+      }
+    }
 
     // ── Resolve provider ────────────────────────────────────
     const providerId = getProviderIdFromModel(activeModel)
@@ -178,10 +258,15 @@ export function useAgentChat() {
       }
     }
 
-    // Memory context injection
-    const memoryContext = useMemoryStore.getState().getMemoryForPrompt(userContent, 2000)
-    if (memoryContext) {
-      systemPrompt = (systemPrompt || '') + `\n\n## Remembered Context\n${memoryContext}`
+    // Memory context injection (context-aware)
+    try {
+      const memContextTokens = await getModelMaxTokens(activeModel)
+      const memoryContext = useMemoryStore.getState().getMemoriesForPrompt(userContent, memContextTokens)
+      if (memoryContext) {
+        systemPrompt = (systemPrompt || '') + `\n\n## Remembered Context\n${memoryContext}`
+      }
+    } catch {
+      // Memory injection is non-critical
     }
 
     // Build agent system prompt
@@ -383,11 +468,14 @@ export function useAgentChat() {
           if (!isError) {
             const argsShort = JSON.stringify(tc.function.arguments).substring(0, 100)
             const resultShort = result.substring(0, 200)
-            useMemoryStore.getState().addEntry(
-              'tool_result',
-              `${tc.function.name}(${argsShort}) → ${resultShort}`,
-              `agent:${tc.function.name}`
-            )
+            useMemoryStore.getState().addMemory({
+              type: 'reference',
+              title: `${tc.function.name} result`,
+              description: `${tc.function.name}(${argsShort.substring(0, 60)}) → ${resultShort.substring(0, 60)}`,
+              content: `${tc.function.name}(${argsShort}) → ${resultShort}`,
+              tags: [`agent:${tc.function.name}`],
+              source: convId || 'agent',
+            })
           }
 
           // Append tool call + result to messages for next iteration
@@ -486,6 +574,12 @@ export function useAgentChat() {
           await speakStreaming(contentRef.current, voice, voiceState.ttsRate, voiceState.ttsPitch)
         } catch { /* TTS errors non-critical */ }
         finally { voiceState.setSpeaking(false) }
+      }
+
+      // Auto-extract memories (fire-and-forget, agent mode always qualifies)
+      const memSettings = useMemoryStore.getState().settings
+      if (memSettings.autoExtractEnabled && contentRef.current.trim() && convId) {
+        extractMemories(userContent, contentRef.current, convId).catch(() => {})
       }
     }
   }, [])

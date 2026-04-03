@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useUIStore } from '../../stores/uiStore'
 import { SliderControl } from './SliderControl'
-import { ApiConfig } from './ApiConfig'
 import { PersonaPanel } from '../personas/PersonaPanel'
 import { useVoiceStore } from '../../stores/voiceStore'
 import { checkWhisperAvailable } from '../../api/voice'
@@ -14,6 +13,8 @@ import { AGENT_TOOL_DEFS } from '../../api/tool-registry'
 import { getRecommendedAgentModels } from '../../lib/model-compatibility'
 import { MemorySettings } from './MemorySettings'
 import { ProviderSettings } from './ProviderConfig'
+import { WorkflowList } from '../agents/WorkflowList'
+import { WorkflowBuilder } from '../agents/WorkflowBuilder'
 
 // ── Collapsible Section ─────────────────────────────────────────
 
@@ -67,6 +68,31 @@ function InlineToggle({ label, enabled, onChange, icon }: { label: string; enabl
         <span className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform ${enabled ? 'translate-x-3.5' : ''}`} />
       </button>
     </div>
+  )
+}
+
+// ── Workflow Section (inline, manages list/builder view) ────────
+
+function WorkflowSection() {
+  const [view, setWfView] = useState<'list' | 'builder'>('list')
+  const [editingId, setEditingId] = useState<string | undefined>()
+
+  if (view === 'builder') {
+    return (
+      <WorkflowBuilder
+        workflowId={editingId}
+        onSave={() => { setWfView('list'); setEditingId(undefined) }}
+        onCancel={() => { setWfView('list'); setEditingId(undefined) }}
+      />
+    )
+  }
+
+  return (
+    <WorkflowList
+      onRun={() => {}}
+      onEdit={(id) => { setEditingId(id); setWfView('builder') }}
+      onCreate={() => { setEditingId(undefined); setWfView('builder') }}
+    />
   )
 }
 
@@ -159,11 +185,6 @@ export function SettingsPage() {
           <ProviderSettings />
         </Section>
 
-        {/* ── API (Ollama legacy) ────────────────────── */}
-        <Section title="Ollama Endpoint">
-          <ApiConfig endpoint={settings.apiEndpoint} onChange={(v) => updateSettings({ apiEndpoint: v })} />
-        </Section>
-
         {/* ── Voice ──────────────────────────────────── */}
         <Section title="Voice">
           <div className="flex items-center gap-3 text-[0.65rem]">
@@ -191,6 +212,11 @@ export function SettingsPage() {
           <SliderControl label="Rate" value={voiceSettings.ttsRate} min={0.5} max={2} step={0.1} onChange={(v) => voiceSettings.updateVoiceSettings({ ttsRate: v })} />
           <SliderControl label="Pitch" value={voiceSettings.ttsPitch} min={0.5} max={2} step={0.1} onChange={(v) => voiceSettings.updateVoiceSettings({ ttsPitch: v })} />
           <InlineToggle label="Auto-send on Transcribe" enabled={voiceSettings.autoSendOnTranscribe} onChange={() => voiceSettings.updateVoiceSettings({ autoSendOnTranscribe: !voiceSettings.autoSendOnTranscribe })} icon={<Mic size={11} className="text-gray-500" />} />
+        </Section>
+
+        {/* ── Memory ─────────────────────────────────── */}
+        <Section title="Memory">
+          <MemorySettings />
         </Section>
 
         {/* ── Personas ───────────────────────────────── */}
@@ -247,6 +273,13 @@ export function SettingsPage() {
           </Section>
         )}
 
+        {/* ── Agent Workflows ────────────────────────── */}
+        {FEATURE_FLAGS.AGENT_WORKFLOWS && (
+          <Section title="Agent Workflows">
+            <WorkflowSection />
+          </Section>
+        )}
+
         {/* ── Search Provider ────────────────────────── */}
         {FEATURE_FLAGS.AGENT_MODE && (
           <Section title="Search Provider">
@@ -292,13 +325,6 @@ export function SettingsPage() {
                 <span className="text-[0.5rem] text-gray-500 mt-0.5 block">AI-optimized search. Free tier: 1000 queries/month. Get key at tavily.com</span>
               </div>
             </div>
-          </Section>
-        )}
-
-        {/* ── Memory ─────────────────────────────────── */}
-        {FEATURE_FLAGS.AGENT_MODE && (
-          <Section title="Agent Memory">
-            <MemorySettings />
           </Section>
         )}
 

@@ -51,7 +51,8 @@ Tired of switching between Ollama for chat, ComfyUI for images, and another tool
 | Image Generation | ✅ | ❌ | ❌ | ❌ |
 | Video Generation | ✅ | ❌ | ❌ | ❌ |
 | Uncensored by Default | ✅ | ❌ | ❌ | ⚠️ |
-| Memory System | ✅ | ❌ | ❌ | ❌ |
+| Memory System | ✅ | ⚠️ (plugin) | ❌ | ❌ |
+| **Agent Workflows** | **✅** | ❌ | ❌ | ❌ |
 | LaTeX / Math Rendering | ✅ | ✅ | ❌ | ❌ |
 | One-Click Setup | ✅ | ❌ (Docker) | ✅ | ❌ (Node.js) |
 | 25+ Built-in Personas | ✅ | ❌ | ❌ | ⚠️ (manual) |
@@ -69,7 +70,8 @@ Tired of switching between Ollama for chat, ComfyUI for images, and another tool
 - **Agent Mode (Beta)** — Give your AI tools: web search, web fetch, file I/O, code execution, image generation. It chains tools autonomously to answer questions with real data. Best with [Hermes 3](https://ollama.com/library/hermes3).
 - **Model A/B Compare** — Send the same prompt to two models side by side. Compare speed, quality, and token usage in real-time with parallel streaming.
 - **Local Benchmark** — One-click benchmark any model on your hardware. Measures tokens/sec, time-to-first-token. Leaderboard across all tested models.
-- **Memory System** — Agent Mode auto-saves tool results. Persistent across sessions. Export/import as .md.
+- **Memory System** — The AI remembers you across conversations. Context-aware injection scales with model size. Auto-extraction learns from every exchange. Export/import as .md or .json.
+- **Agent Workflows** — Reusable multi-step agent chains. 3 built-in workflows (Research Topic, Summarize URL, Code Review). Visual builder for custom workflows with prompt, tool, condition, and loop steps.
 - **Image Generation** — Text-to-image via ComfyUI with full parameter control
 - **Video Generation** — Text-to-video with Wan 2.1/2.2, HunyuanVideo, LTX support
 - **Document Chat (RAG)** — Upload PDFs, DOCX, or TXT files and chat with your documents

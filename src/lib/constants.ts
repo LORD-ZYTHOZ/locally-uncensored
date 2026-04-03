@@ -3,6 +3,7 @@ import type { Persona, Settings } from '../types/settings'
 // Feature flags — flip to true when ready to ship
 export const FEATURE_FLAGS = {
   AGENT_MODE: true,
+  AGENT_WORKFLOWS: true,
 } as const
 
 export const DEFAULT_SETTINGS: Settings = {

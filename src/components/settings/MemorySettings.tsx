@@ -1,50 +1,90 @@
-import { useState, useRef } from 'react'
-import { Brain, Download, Upload, Trash2, Search, Tag } from 'lucide-react'
-import { useMemoryStore } from '../../stores/memoryStore'
+import { useState, useRef, useEffect } from 'react'
+import { Brain, Download, Upload, Trash2, Search, Plus, X, Check, Pencil, Zap, FileJson } from 'lucide-react'
+import { useMemoryStore, getMemoryBudget } from '../../stores/memoryStore'
+import { useModelStore } from '../../stores/modelStore'
+import { getModelMaxTokens } from '../../lib/context-compaction'
 import { GlowButton } from '../ui/GlowButton'
-import type { MemoryCategory } from '../../types/agent-mode'
+import type { MemoryType, MemoryFile } from '../../types/agent-mode'
 
-const CATEGORY_LABELS: Record<MemoryCategory, string> = {
-  fact: 'Facts',
-  tool_result: 'Tool Results',
-  decision: 'Decisions',
-  context: 'Context',
+// ── Subtle type indicator (internal, not user-facing) ─────────
+
+const TYPE_DOT_COLORS: Record<MemoryType, string> = {
+  user: 'bg-blue-400',
+  feedback: 'bg-amber-400',
+  project: 'bg-purple-400',
+  reference: 'bg-green-400',
 }
 
-const CATEGORY_COLORS: Record<MemoryCategory, string> = {
-  fact: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  tool_result: 'bg-green-500/15 text-green-400 border-green-500/30',
-  decision: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
-  context: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-}
+// ── Component ─────────────────────────────────────────────────
 
 export function MemorySettings() {
-  const { entries, removeEntry, clearAll, exportAsMarkdown, importFromMarkdown } = useMemoryStore()
+  const { entries, removeMemory, updateMemory, clearAll, settings, updateMemorySettings, exportAsMarkdown, importFromMarkdown, exportAsJSON, importFromJSON } = useMemoryStore()
   const [search, setSearch] = useState('')
-  const [activeCategory, setActiveCategory] = useState<MemoryCategory | 'all'>('all')
   const [confirmClear, setConfirmClear] = useState(false)
+  const [addingNew, setAddingNew] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [contextBudgetLabel, setContextBudgetLabel] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const jsonInputRef = useRef<HTMLInputElement>(null)
+
+  // ── New memory form state ───────────────────────────────────
+  const [newTitle, setNewTitle] = useState('')
+  const [newContent, setNewContent] = useState('')
+
+  // ── Edit form state ─────────────────────────────────────────
+  const [editTitle, setEditTitle] = useState('')
+  const [editContent, setEditContent] = useState('')
+
+  // ── Context budget detection ────────────────────────────────
+  useEffect(() => {
+    const model = useModelStore.getState().activeModel
+    if (!model) {
+      setContextBudgetLabel('No model selected')
+      return
+    }
+    getModelMaxTokens(model).then((ctx) => {
+      const budget = getMemoryBudget(ctx)
+      if (budget.budgetTokens === 0) {
+        setContextBudgetLabel(`${Math.round(ctx / 1024)}K ctx — memory injection disabled`)
+      } else {
+        setContextBudgetLabel(`${Math.round(ctx / 1024)}K ctx — up to ${budget.maxMemories} memories injected`)
+      }
+    }).catch(() => setContextBudgetLabel(''))
+  }, [])
 
   const filtered = entries.filter(e => {
-    if (activeCategory !== 'all' && e.category !== activeCategory) return false
     if (search) {
-      return e.content.toLowerCase().includes(search.toLowerCase())
+      const q = search.toLowerCase()
+      return e.title.toLowerCase().includes(q) || e.content.toLowerCase().includes(q) || e.tags.some(t => t.toLowerCase().includes(q))
     }
     return true
   })
 
-  const handleExport = () => {
+  // ── Handlers ────────────────────────────────────────────────
+
+  const handleExportMd = () => {
     const md = exportAsMarkdown()
     const blob = new Blob([md], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'agent-memory.md'
+    a.download = 'memory.md'
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleExportJSON = () => {
+    const json = exportAsJSON()
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'memory.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImportMd = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
@@ -53,7 +93,19 @@ export function MemorySettings() {
       if (content) importFromMarkdown(content)
     }
     reader.readAsText(file)
-    e.target.value = '' // reset
+    e.target.value = ''
+  }
+
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const content = ev.target?.result as string
+      if (content) importFromJSON(content)
+    }
+    reader.readAsText(file)
+    e.target.value = ''
   }
 
   const handleClear = () => {
@@ -66,105 +118,215 @@ export function MemorySettings() {
     setConfirmClear(false)
   }
 
-  const categories: (MemoryCategory | 'all')[] = ['all', 'fact', 'tool_result', 'decision', 'context']
+  const handleAddMemory = () => {
+    if (!newTitle.trim() || !newContent.trim()) return
+    useMemoryStore.getState().addMemory({
+      type: 'user',
+      title: newTitle.trim().substring(0, 60),
+      description: newContent.trim().substring(0, 120),
+      content: newContent.trim(),
+      tags: [],
+      source: 'manual',
+    })
+    setNewTitle('')
+    setNewContent('')
+    setAddingNew(false)
+  }
+
+  const startEdit = (entry: MemoryFile) => {
+    setEditingId(entry.id)
+    setEditTitle(entry.title)
+    setEditContent(entry.content)
+  }
+
+  const saveEdit = () => {
+    if (!editingId || !editTitle.trim() || !editContent.trim()) return
+    updateMemory(editingId, {
+      title: editTitle.trim().substring(0, 60),
+      content: editContent.trim(),
+      description: editContent.trim().substring(0, 120),
+    })
+    setEditingId(null)
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Brain size={16} className="text-purple-400" />
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">Agent Memory</h2>
+          <Brain size={14} className="text-purple-400" />
+          <span className="text-[0.65rem] text-gray-500">
+            {entries.length} {entries.length === 1 ? 'memory' : 'memories'}
+          </span>
         </div>
-        <span className="text-[0.65rem] text-gray-500">
-          {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
-        </span>
+      </div>
+
+      {/* Context budget indicator */}
+      {contextBudgetLabel && (
+        <div className="text-[0.6rem] text-gray-500 bg-gray-100 dark:bg-white/[0.03] rounded-lg px-2.5 py-1.5 border border-gray-200 dark:border-white/5">
+          {contextBudgetLabel}
+        </div>
+      )}
+
+      {/* Settings toggles */}
+      <div className="space-y-1.5 pb-2 border-b border-gray-200 dark:border-white/5">
+        <div className="flex items-center justify-between py-0.5">
+          <div className="flex items-center gap-1.5">
+            <Zap size={11} className="text-amber-400" />
+            <span className="text-[0.65rem] text-gray-400">Auto-extract memories</span>
+            <span className="text-[0.5rem] text-gray-600">(extra inference)</span>
+          </div>
+          <button
+            onClick={() => updateMemorySettings({ autoExtractEnabled: !settings.autoExtractEnabled })}
+            className={`relative w-7 h-3.5 rounded-full transition-colors ${settings.autoExtractEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform ${settings.autoExtractEnabled ? 'translate-x-3.5' : ''}`} />
+          </button>
+        </div>
+
+        {settings.autoExtractEnabled && (
+          <div className="flex items-center justify-between py-0.5 pl-4">
+            <span className="text-[0.6rem] text-gray-500">Also extract outside Agent Mode</span>
+            <button
+              onClick={() => updateMemorySettings({ autoExtractInAllModes: !settings.autoExtractInAllModes })}
+              className={`relative w-7 h-3.5 rounded-full transition-colors ${settings.autoExtractInAllModes ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform ${settings.autoExtractInAllModes ? 'translate-x-3.5' : ''}`} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Search */}
       <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search memory..."
-          className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-gray-400 dark:focus:border-white/20"
+          placeholder="Search memories..."
+          className="w-full pl-7 pr-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 text-[0.65rem] text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-gray-400 dark:focus:border-white/20"
         />
       </div>
 
-      {/* Category tabs */}
-      <div className="flex gap-1 flex-wrap">
-        {categories.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`text-[0.65rem] px-2 py-1 rounded-full border transition-colors ${
-              activeCategory === cat
-                ? 'border-white/30 bg-white/10 text-white'
-                : 'border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20'
-            }`}
-          >
-            {cat === 'all' ? 'All' : CATEGORY_LABELS[cat]}
-            {cat !== 'all' && (
-              <span className="ml-1 text-gray-600">
-                {entries.filter(e => e.category === cat).length}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Entries list */}
-      <div className="space-y-1 max-h-[300px] overflow-y-auto scrollbar-thin">
-        {filtered.length === 0 && (
-          <p className="text-[0.7rem] text-gray-500 text-center py-4">
-            {entries.length === 0 ? 'No memories yet. Agent Mode will auto-save tool results here.' : 'No matching entries.'}
-          </p>
-        )}
-        {filtered.map(entry => (
-          <div key={entry.id} className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.03] group">
-            <Tag size={10} className={`mt-1 shrink-0 ${
-              entry.category === 'fact' ? 'text-blue-400' :
-              entry.category === 'tool_result' ? 'text-green-400' :
-              entry.category === 'decision' ? 'text-purple-400' : 'text-amber-400'
-            }`} />
-            <div className="flex-1 min-w-0">
-              <p className="text-[0.7rem] text-gray-300 break-words">{entry.content}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className={`text-[0.55rem] px-1 py-0.5 rounded border ${CATEGORY_COLORS[entry.category]}`}>
-                  {CATEGORY_LABELS[entry.category]}
-                </span>
-                {entry.source && (
-                  <span className="text-[0.55rem] text-gray-600">{entry.source}</span>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => removeEntry(entry.id)}
-              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all shrink-0"
-              aria-label="Delete entry"
-            >
-              <Trash2 size={10} />
+      {/* Add new memory */}
+      {addingNew ? (
+        <div className="space-y-1.5 p-2.5 rounded-lg border border-white/10 bg-white/[0.02]">
+          <input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            placeholder="What should I remember?"
+            maxLength={60}
+            className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[0.65rem] text-gray-300 placeholder-gray-600 focus:outline-none focus:border-white/20"
+            autoFocus
+          />
+          <textarea
+            value={newContent}
+            onChange={(e) => setNewContent(e.target.value)}
+            placeholder="Details..."
+            rows={2}
+            className="w-full px-2 py-1 rounded bg-white/5 border border-white/10 text-[0.65rem] text-gray-300 placeholder-gray-600 focus:outline-none resize-none"
+          />
+          <div className="flex gap-1.5">
+            <button onClick={handleAddMemory} className="flex items-center gap-1 px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-[0.6rem] hover:bg-green-500/30">
+              <Check size={10} /> Save
+            </button>
+            <button onClick={() => { setAddingNew(false); setNewTitle(''); setNewContent('') }} className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 text-gray-400 text-[0.6rem] hover:bg-white/10">
+              <X size={10} /> Cancel
             </button>
           </div>
-        ))}
+        </div>
+      ) : (
+        <button
+          onClick={() => setAddingNew(true)}
+          className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg border border-dashed border-gray-300 dark:border-white/10 text-[0.6rem] text-gray-500 hover:text-gray-300 hover:border-white/20 transition-colors"
+        >
+          <Plus size={10} /> Add Memory
+        </button>
+      )}
+
+      {/* Entries list */}
+      <div className="space-y-0.5 max-h-[280px] overflow-y-auto scrollbar-thin">
+        {filtered.length === 0 && (
+          <p className="text-[0.65rem] text-gray-500 text-center py-4">
+            {entries.length === 0 ? 'No memories yet. The AI will learn about you over time.' : 'No matches.'}
+          </p>
+        )}
+        {filtered.map(entry => {
+          if (editingId === entry.id) {
+            return (
+              <div key={entry.id} className="space-y-1.5 p-2 rounded-lg border border-white/10 bg-white/[0.02]">
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  maxLength={60}
+                  className="w-full px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[0.65rem] text-gray-300 focus:outline-none"
+                />
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={2}
+                  className="w-full px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[0.65rem] text-gray-300 focus:outline-none resize-none"
+                />
+                <div className="flex gap-1.5">
+                  <button onClick={saveEdit} className="flex items-center gap-1 px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-[0.6rem]">
+                    <Check size={10} /> Save
+                  </button>
+                  <button onClick={() => setEditingId(null)} className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 text-gray-400 text-[0.6rem]">
+                    <X size={10} /> Cancel
+                  </button>
+                </div>
+              </div>
+            )
+          }
+
+          return (
+            <div key={entry.id} className="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.03] group">
+              <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${TYPE_DOT_COLORS[entry.type]}`} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[0.65rem] font-medium text-gray-200">{entry.title}</p>
+                <p className="text-[0.6rem] text-gray-500 break-words line-clamp-2">{entry.content}</p>
+              </div>
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <button
+                  onClick={() => startEdit(entry)}
+                  className="p-0.5 rounded hover:bg-white/10 text-gray-600 hover:text-gray-300"
+                  aria-label="Edit entry"
+                >
+                  <Pencil size={10} />
+                </button>
+                <button
+                  onClick={() => removeMemory(entry.id)}
+                  className="p-0.5 rounded hover:bg-red-500/20 text-gray-600 hover:text-red-400"
+                  aria-label="Delete entry"
+                >
+                  <Trash2 size={10} />
+                </button>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2">
-        <GlowButton variant="secondary" onClick={handleExport} className="flex-1 text-xs flex items-center justify-center gap-1.5">
-          <Download size={12} /> Export .md
+      <div className="flex gap-1.5">
+        <GlowButton variant="secondary" onClick={handleExportMd} className="flex-1 text-[0.6rem] flex items-center justify-center gap-1">
+          <Download size={10} /> .md
         </GlowButton>
-        <GlowButton variant="secondary" onClick={() => fileInputRef.current?.click()} className="flex-1 text-xs flex items-center justify-center gap-1.5">
-          <Upload size={12} /> Import .md
+        <GlowButton variant="secondary" onClick={handleExportJSON} className="flex-1 text-[0.6rem] flex items-center justify-center gap-1">
+          <FileJson size={10} /> .json
+        </GlowButton>
+        <GlowButton variant="secondary" onClick={() => fileInputRef.current?.click()} className="flex-1 text-[0.6rem] flex items-center justify-center gap-1">
+          <Upload size={10} /> Import
         </GlowButton>
         <GlowButton
           variant={confirmClear ? 'danger' : 'secondary'}
           onClick={handleClear}
-          className="text-xs flex items-center justify-center gap-1.5 px-3"
+          className="text-[0.6rem] flex items-center justify-center gap-1 px-2.5"
         >
-          <Trash2 size={12} /> {confirmClear ? 'Confirm?' : 'Clear'}
+          <Trash2 size={10} /> {confirmClear ? 'Sure?' : 'Clear'}
         </GlowButton>
-        <input ref={fileInputRef} type="file" accept=".md,.txt" onChange={handleImport} className="hidden" />
+        <input ref={fileInputRef} type="file" accept=".md,.txt" onChange={handleImportMd} className="hidden" />
+        <input ref={jsonInputRef} type="file" accept=".json" onChange={handleImportJSON} className="hidden" />
       </div>
     </div>
   )

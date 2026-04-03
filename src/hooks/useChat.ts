@@ -5,9 +5,12 @@ import { useModelStore } from "../stores/modelStore"
 import { useSettingsStore } from "../stores/settingsStore"
 import { useRAGStore } from "../stores/ragStore"
 import { useVoiceStore } from "../stores/voiceStore"
+import { useMemoryStore } from "../stores/memoryStore"
 import { retrieveContext } from "../api/rag"
 import { speakStreaming, isSpeechSynthesisSupported, getVoicesAsync } from "../api/voice"
+import { getModelMaxTokens } from "../lib/context-compaction"
 import { useAgentChat } from "./useAgentChat"
+import { useMemory } from "./useMemory"
 import { useAgentModeStore } from "../stores/agentModeStore"
 import { getProviderForModel } from "../api/providers"
 import type { ChatStreamChunk } from "../api/providers/types"
@@ -22,6 +25,7 @@ export function useChat() {
 
   // Agent mode composition
   const agentChat = useAgentChat()
+  const { extractAndSave } = useMemory()
 
   const sendMessage = useCallback(async (content: string) => {
     const { activeModel } = useModelStore.getState()
@@ -93,6 +97,17 @@ export function useChat() {
           console.error("RAG retrieval failed, continuing without context:", err)
         }
       }
+    }
+
+    // Memory context injection (context-aware)
+    try {
+      const contextTokens = await getModelMaxTokens(activeModel)
+      const memoryContext = useMemoryStore.getState().getMemoriesForPrompt(content, contextTokens)
+      if (memoryContext) {
+        systemPrompt = (systemPrompt || '') + `\n\n## Remembered Context\n${memoryContext}`
+      }
+    } catch {
+      // Memory injection is non-critical
     }
 
     const messages = [
@@ -211,6 +226,12 @@ export function useChat() {
           await speakStreaming(contentRef.current, voice, voiceState.ttsRate, voiceState.ttsPitch)
         } catch { /* TTS errors are non-critical */ }
         finally { voiceState.setSpeaking(false) }
+      }
+
+      // Auto-extract memories (fire-and-forget)
+      const memSettings = useMemoryStore.getState().settings
+      if (memSettings.autoExtractEnabled && memSettings.autoExtractInAllModes && contentRef.current.trim() && convId) {
+        extractAndSave(content, contentRef.current, convId).catch(() => {})
       }
     }
   }, [])
