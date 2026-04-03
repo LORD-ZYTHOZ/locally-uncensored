@@ -253,6 +253,7 @@ export function getImageBundles(): ModelBundle[] {
       name: 'Juggernaut XL V9 (Photorealistic)',
       description: 'Best photorealistic SDXL checkpoint. All-in-one — just install and generate.',
       tags: ['SDXL', 'Photorealistic', '1024px'],
+      uncensored: true,
       totalSizeGB: 6.5,
       vramRequired: '6-8 GB',
       workflow: 'wan',
@@ -271,6 +272,7 @@ export function getImageBundles(): ModelBundle[] {
       name: 'RealVisXL V5 (Photorealistic)',
       description: 'Great for portraits, landscapes, and product photos. Ready to use.',
       tags: ['SDXL', 'Photorealistic', '1024px'],
+      uncensored: true,
       totalSizeGB: 3.5,
       vramRequired: '6-8 GB',
       workflow: 'wan',
@@ -397,6 +399,25 @@ export function getImageBundles(): ModelBundle[] {
         },
       ],
     },
+    {
+      name: 'Pony Diffusion V6 XL (Anime/Stylized)',
+      description: 'Top anime and stylized checkpoint. Uncensored, no content filter. Great for creative work.',
+      tags: ['SDXL', 'Anime', 'Stylized', '1024px'],
+      uncensored: true,
+      totalSizeGB: 6.5,
+      vramRequired: '6-8 GB',
+      workflow: 'wan',
+      url: 'https://civitai.com/models/257749/pony-diffusion-v6-xl',
+      files: [
+        {
+          name: 'Pony Diffusion V6 XL',
+          description: 'SDXL checkpoint — anime and stylized art.',
+          pulls: '', tags: ['Checkpoint', '6.5 GB'], updated: '',
+          downloadUrl: 'https://huggingface.co/AstraliteHeart/pony-diffusion-v6-xl/resolve/main/v6.safetensors',
+          filename: 'ponyDiffusionV6XL.safetensors', subfolder: 'checkpoints', sizeGB: 6.5,
+        },
+      ],
+    },
   ]
 }
 
@@ -427,6 +448,7 @@ export interface ModelBundle {
   files: DiscoverModel[]
   url?: string
   hot?: boolean
+  uncensored?: boolean
 }
 
 export function getVideoBundles(): ModelBundle[] {
@@ -436,6 +458,7 @@ export function getVideoBundles(): ModelBundle[] {
       description: 'Best for 8-10 GB VRAM GPUs. Generates 480p video. Fast and lightweight.',
       tags: ['Wan 2.1', '480p', 'Fast'],
       hot: true,
+      uncensored: true,
       totalSizeGB: 7.6,
       vramRequired: '8-10 GB',
       workflow: 'wan',
@@ -468,6 +491,7 @@ export function getVideoBundles(): ModelBundle[] {
       name: 'Wan 2.1 — 14B FP8 (High Quality)',
       description: 'Best quality for 12+ GB VRAM. Generates up to 720p. Slower but much better results.',
       tags: ['Wan 2.1', '720p', 'Quality'],
+      uncensored: true,
       totalSizeGB: 19.1,
       vramRequired: '12+ GB',
       workflow: 'wan',

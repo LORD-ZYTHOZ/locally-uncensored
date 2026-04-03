@@ -199,7 +199,7 @@ export function DiscoverModels({ category }: Props) {
   const [downloads, setDownloads] = useState<Record<string, DownloadProgress>>({})
   const [downloadMeta, setDownloadMeta] = useState<Record<string, { url: string; subfolder: string }>>({})
   const [systemVRAM, setSystemVRAM] = useState<number | null>(null)
-  const [textSubTab, setTextSubTab] = useState<'uncensored' | 'mainstream'>('uncensored')
+  const [subTab, setSubTab] = useState<'uncensored' | 'mainstream'>('uncensored')
   const { pullModel, isPulling, pullProgress, models: installedModels } = useModels()
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -280,9 +280,10 @@ export function DiscoverModels({ category }: Props) {
     return parseVRAM(a.vramRequired) - parseVRAM(b.vramRequired)
   })
 
+  const tabFilteredBundles = sortedBundles.filter(b => subTab === 'uncensored' ? b.uncensored : !b.uncensored)
   const filteredBundles = search
-    ? sortedBundles.filter((b) => b.name.toLowerCase().includes(search.toLowerCase()) || b.description.toLowerCase().includes(search.toLowerCase()))
-    : sortedBundles
+    ? tabFilteredBundles.filter((b) => b.name.toLowerCase().includes(search.toLowerCase()) || b.description.toLowerCase().includes(search.toLowerCase()))
+    : tabFilteredBundles
 
   const isInstalled = (name: string) => installedModels.some((m) => m.name.startsWith(name.split(':')[0]))
 
@@ -490,6 +491,30 @@ export function DiscoverModels({ category }: Props) {
         </p>
       )}
 
+      {/* Sub-tabs: Uncensored / Mainstream — all categories */}
+      <div className="flex gap-4 mb-4">
+        <button
+          onClick={() => setSubTab('uncensored')}
+          className={`flex items-center gap-2 transition-all ${
+            subTab === 'uncensored' ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+          }`}
+        >
+          <div className={`w-1 h-5 rounded-full ${subTab === 'uncensored' ? 'bg-red-500' : 'bg-red-500/50'}`} />
+          <span className="text-[0.75rem] font-semibold text-gray-900 dark:text-white uppercase tracking-wider">Uncensored</span>
+          <span className="text-[0.55rem] text-gray-500">{isText ? 'No filters, no limits' : 'No content filter'}</span>
+        </button>
+        <button
+          onClick={() => setSubTab('mainstream')}
+          className={`flex items-center gap-2 transition-all ${
+            subTab === 'mainstream' ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+          }`}
+        >
+          <div className={`w-1 h-5 rounded-full ${subTab === 'mainstream' ? 'bg-blue-500' : 'bg-blue-500/50'}`} />
+          <span className="text-[0.75rem] font-semibold text-gray-900 dark:text-white uppercase tracking-wider">Mainstream</span>
+          <span className="text-[0.55rem] text-gray-500">{isText ? 'Tool calling + vision' : 'Popular + high quality'}</span>
+        </button>
+      </div>
+
       {/* Model Bundles (Image + Video) — same grid style as text models */}
       {(isImage || isVideo) && filteredBundles.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -632,38 +657,12 @@ export function DiscoverModels({ category }: Props) {
         </GlassCard>
       )}
 
-      {/* Sub-tabs for text: Uncensored / Mainstream — section header style, clickable */}
-      {isText && (
-        <div className="flex gap-4 mb-4">
-          <button
-            onClick={() => setTextSubTab('uncensored')}
-            className={`flex items-center gap-2 transition-all ${
-              textSubTab === 'uncensored' ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-            }`}
-          >
-            <div className={`w-1 h-5 rounded-full ${textSubTab === 'uncensored' ? 'bg-red-500' : 'bg-red-500/50'}`} />
-            <span className="text-[0.75rem] font-semibold text-gray-900 dark:text-white uppercase tracking-wider">Uncensored</span>
-            <span className="text-[0.55rem] text-gray-500">No filters, no limits</span>
-          </button>
-          <button
-            onClick={() => setTextSubTab('mainstream')}
-            className={`flex items-center gap-2 transition-all ${
-              textSubTab === 'mainstream' ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-            }`}
-          >
-            <div className={`w-1 h-5 rounded-full ${textSubTab === 'mainstream' ? 'bg-blue-500' : 'bg-blue-500/50'}`} />
-            <span className="text-[0.75rem] font-semibold text-gray-900 dark:text-white uppercase tracking-wider">Mainstream</span>
-            <span className="text-[0.55rem] text-gray-500">Tool calling + vision</span>
-          </button>
-        </div>
-      )}
-
       {loading ? (
         <div className="text-center py-8 text-gray-500">Loading models...</div>
       ) : isText ? (
         <>
           {/* Active sub-tab content */}
-          {textSubTab === 'uncensored' && (
+          {subTab === 'uncensored' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredUncensored.map((model, i) => (
                 <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPulling={isPulling} isInstalled={isInstalled} handleDownload={handleDownload} />
@@ -673,7 +672,7 @@ export function DiscoverModels({ category }: Props) {
               )}
             </div>
           )}
-          {textSubTab === 'mainstream' && (
+          {subTab === 'mainstream' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredMainstream.map((model, i) => (
                 <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPulling={isPulling} isInstalled={isInstalled} handleDownload={handleDownload} />
