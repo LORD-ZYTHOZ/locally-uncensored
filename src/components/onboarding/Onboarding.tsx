@@ -192,8 +192,8 @@ export function Onboarding() {
                   onClick={() => {
                     const backend = detectedBackends.find(b => b.id === selectedBackend)
                     if (backend && backend.id !== 'ollama') {
-                      // Disable Ollama, enable selected backend
-                      setProviderConfig('ollama', { enabled: false })
+                      // Enable selected backend WITHOUT disabling Ollama
+                      // Both can be active simultaneously
                       setProviderConfig('openai', {
                         enabled: true,
                         name: backend.name,

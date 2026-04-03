@@ -97,9 +97,9 @@ export function useModels() {
           ])
           const classifyComfyModel = (name: string): AIModel => {
             if (isVideoModel(name)) {
-              return { name, model: name, size: 0, format: 'safetensors', architecture: 'unknown', type: 'video', provider: 'ollama', providerName: 'ComfyUI' } as VideoModel
+              return { name, model: name, size: 0, format: 'safetensors', architecture: 'unknown', type: 'video', providerName: 'ComfyUI' } as VideoModel
             }
-            return { name, model: name, size: 0, format: 'safetensors', architecture: 'unknown', type: 'image', provider: 'ollama', providerName: 'ComfyUI' } as ImageModel
+            return { name, model: name, size: 0, format: 'safetensors', architecture: 'unknown', type: 'image', providerName: 'ComfyUI' } as ImageModel
           }
           comfyModels = [
             ...checkpoints.map((name) => classifyComfyModel(name)),

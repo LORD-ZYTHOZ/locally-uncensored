@@ -29,7 +29,7 @@ function cacheKey(config: ProviderConfig): string {
 function createClient(config: ProviderConfig): ProviderClient {
   switch (config.id) {
     case 'ollama':
-      return new OllamaProvider()
+      return new OllamaProvider(config)
     case 'openai':
       return new OpenAIProvider(config)
     case 'anthropic':

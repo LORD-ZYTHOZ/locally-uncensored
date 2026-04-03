@@ -6,11 +6,11 @@
  */
 
 import type {
-  ProviderClient, ProviderModel, ChatMessage, ChatOptions,
+  ProviderClient, ProviderModel, ProviderConfig, ChatMessage, ChatOptions,
   ChatStreamChunk, ToolCall, ToolDefinition,
 } from './types'
 import { ProviderError } from './types'
-import { ollamaUrl, localFetch, localFetchStream } from '../backend'
+import { isTauri, localFetch, localFetchStream } from '../backend'
 import { parseNDJSONStream } from '../stream'
 
 // ── Ollama-specific types ──────────────────────────────────────
@@ -41,6 +41,18 @@ interface OllamaModelEntry {
 export class OllamaProvider implements ProviderClient {
   readonly id = 'ollama' as const
 
+  constructor(private config: ProviderConfig) {}
+
+  /** Build a full Ollama API URL from config.baseUrl + path */
+  private apiUrl(path: string): string {
+    const base = this.config.baseUrl || 'http://localhost:11434'
+    if (isTauri()) {
+      return `${base}/api${path}`
+    }
+    // Dev mode: proxy through Vite — use /api path
+    return `/api${path}`
+  }
+
   async *chatStream(
     model: string,
     messages: ChatMessage[],
@@ -61,7 +73,7 @@ export class OllamaProvider implements ProviderClient {
     if (options?.maxTokens) ollamaOptions.num_predict = options.maxTokens
     if (Object.keys(ollamaOptions).length > 0) body.options = ollamaOptions
 
-    const res = await localFetchStream(ollamaUrl('/chat'), {
+    const res = await localFetchStream(this.apiUrl('/chat'), {
       method: 'POST',
       body: JSON.stringify(body),
     })
@@ -114,7 +126,7 @@ export class OllamaProvider implements ProviderClient {
     if (options?.maxTokens) ollamaOptions.num_predict = options.maxTokens
     if (Object.keys(ollamaOptions).length > 0) body.options = ollamaOptions
 
-    const res = await localFetch(ollamaUrl('/chat'), {
+    const res = await localFetch(this.apiUrl('/chat'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -139,7 +151,7 @@ export class OllamaProvider implements ProviderClient {
   }
 
   async listModels(): Promise<ProviderModel[]> {
-    const res = await localFetch(ollamaUrl('/tags'))
+    const res = await localFetch(this.apiUrl('/tags'))
     if (!res.ok) {
       throw new ProviderError('Failed to fetch Ollama models', 'ollama', 'network', res.status)
     }
@@ -156,7 +168,7 @@ export class OllamaProvider implements ProviderClient {
 
   async checkConnection(): Promise<boolean> {
     try {
-      const res = await localFetch(ollamaUrl('/tags'))
+      const res = await localFetch(this.apiUrl('/tags'))
       return res.ok
     } catch {
       return false
@@ -165,7 +177,7 @@ export class OllamaProvider implements ProviderClient {
 
   async getContextLength(model: string): Promise<number> {
     try {
-      const res = await localFetch(ollamaUrl('/show'), {
+      const res = await localFetch(this.apiUrl('/show'), {
         method: 'POST',
         body: JSON.stringify({ name: model }),
       })
