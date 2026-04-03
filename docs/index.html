@@ -27,7 +27,7 @@
 <!-- Setup: docker compose up -d on your server, then replace YOUR-DOMAIN below -->
 <script defer data-domain="YOUR-DOMAIN.com" src="https://plausible.YOUR-DOMAIN.com/js/script.js"></script>
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Locally Uncensored","applicationCategory":"DeveloperApplication","applicationSubCategory":"Artificial Intelligence","operatingSystem":"Windows, macOS, Linux","description":"All-in-one local AI desktop app for uncensored chat, image generation, and video creation. Run Llama, Mistral, Qwen, FLUX, Stable Diffusion, and Wan 2.1 models locally with zero cloud dependency.","url":"https://locallyuncensored.com/","downloadUrl":"https://github.com/PurpleDoubleD/locally-uncensored","softwareVersion":"1.9.0","license":"https://opensource.org/licenses/MIT","author":{"@type":"Person","name":"PurpleDoubleD","url":"https://github.com/PurpleDoubleD"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Uncensored AI Chat via Ollama","Image Generation via ComfyUI and Stable Diffusion","Video Generation with Wan 2.1 and AnimateDiff","25+ Built-in AI Personas","One-Click Setup on Windows, macOS, Linux","Model Auto-Detection","100% Offline and Private","No Docker Required"],"screenshot":"https://raw.githubusercontent.com/PurpleDoubleD/locally-uncensored/master/docs/screenshots/marketing_03_chat_personas.png","softwareRequirements":"Node.js 18+, Ollama","memoryRequirements":"8 GB RAM minimum","storageRequirements":"6 GB for default model"}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Locally Uncensored","applicationCategory":"DeveloperApplication","applicationSubCategory":"Artificial Intelligence","operatingSystem":"Windows, macOS, Linux","description":"All-in-one local AI desktop app for uncensored chat, image generation, and video creation. Run Llama, Mistral, Qwen, FLUX, Stable Diffusion, and Wan 2.1 models locally with zero cloud dependency.","url":"https://locallyuncensored.com/","downloadUrl":"https://github.com/PurpleDoubleD/locally-uncensored","softwareVersion":"2.0.0","license":"https://opensource.org/licenses/MIT","author":{"@type":"Person","name":"PurpleDoubleD","url":"https://github.com/PurpleDoubleD"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Uncensored AI Chat via Ollama","Image Generation via ComfyUI and Stable Diffusion","Video Generation with Wan 2.1 and AnimateDiff","25+ Built-in AI Personas","One-Click Setup on Windows, macOS, Linux","Model Auto-Detection","100% Offline and Private","No Docker Required"],"screenshot":"https://raw.githubusercontent.com/PurpleDoubleD/locally-uncensored/master/docs/screenshots/marketing_03_chat_personas.png","softwareRequirements":"Node.js 18+, Ollama","memoryRequirements":"8 GB RAM minimum","storageRequirements":"6 GB for default model"}
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Organization","name":"PurpleDoubleD","url":"https://github.com/PurpleDoubleD","sameAs":["https://github.com/PurpleDoubleD","https://reddit.com/user/GroundbreakingMall54"]}
@@ -221,11 +221,11 @@ footer a:hover{color:var(--text)}
 </section>
 
 <section class="install reveal" id="install">
-  <p style="margin-bottom:1.5rem;font-size:1.1rem;color:#ededed;font-weight:600">Download v1.9.0</p>
+  <p style="margin-bottom:1.5rem;font-size:1.1rem;color:#ededed;font-weight:600">Download v2.0.0</p>
   <div style="display:flex;gap:1rem;justify-content:center;margin-bottom:2rem;flex-wrap:wrap">
-    <a href="https://github.com/PurpleDoubleD/locally-uncensored/releases/download/v1.9.0/Locally.Uncensored_1.9.0_x64-setup.exe" class="btn btn-primary" style="font-size:.9rem;padding:.6rem 1.5rem">Windows (.exe)</a>
-    <a href="https://github.com/PurpleDoubleD/locally-uncensored/releases/download/v1.9.0/Locally.Uncensored_1.9.0_amd64.AppImage" class="btn btn-primary" style="font-size:.9rem;padding:.6rem 1.5rem">Linux (.AppImage)</a>
-    <a href="https://github.com/PurpleDoubleD/locally-uncensored/releases/download/v1.9.0/Locally.Uncensored_1.9.0_amd64.deb" class="btn" style="font-size:.9rem;padding:.6rem 1.5rem">Linux (.deb)</a>
+    <a href="https://github.com/PurpleDoubleD/locally-uncensored/releases/tag/v2.0.0" class="btn btn-primary" style="font-size:.9rem;padding:.6rem 1.5rem">Windows (.exe)</a>
+    <a href="https://github.com/PurpleDoubleD/locally-uncensored/releases/tag/v2.0.0" class="btn btn-primary" style="font-size:.9rem;padding:.6rem 1.5rem">Linux (.AppImage)</a>
+    <a href="https://github.com/PurpleDoubleD/locally-uncensored/releases/tag/v2.0.0" class="btn" style="font-size:.9rem;padding:.6rem 1.5rem">All Downloads</a>
   </div>
   <p style="color:var(--text-tertiary);font-size:.8rem;margin-bottom:2rem">macOS: <a href="https://github.com/PurpleDoubleD/locally-uncensored#-build-from-source-all-platforms">Build from source</a></p>
   <div class="install-cmd" onclick="navigator.clipboard.writeText('git clone https://github.com/PurpleDoubleD/locally-uncensored.git && cd locally-uncensored && setup.bat')">
@@ -330,45 +330,45 @@ footer a:hover{color:var(--text)}
 </section>
 
 <section class="agent-section reveal" id="agent-mode">
-  <div class="section-label">New in v1.9</div>
-  <h2 class="section-heading">Agent Mode. Local AI that actually does things.</h2>
-  <div class="section-desc">Your AI doesn't just chat — it searches the web, reads files, writes code, and generates images. All running on your hardware, with models that don't refuse.</div>
+  <div class="section-label">New in v2.0</div>
+  <h2 class="section-heading">Memory. Workflows. Multi-Provider. A/B Compare.</h2>
+  <div class="section-desc">v2.0 is the biggest update yet. Your AI remembers you, chains tools into workflows, compares models side by side, and connects to any provider.</div>
 
   <div class="agent-grid">
     <div class="agent-card">
-      <div class="agent-icon">🔍</div>
-      <h3>Web Search & Fetch</h3>
-      <p>Two-phase search: find URLs, then fetch and read actual page content. Real answers, not hallucinations.</p>
-    </div>
-    <div class="agent-card">
-      <div class="agent-icon">💻</div>
-      <h3>Code Execution</h3>
-      <p>Write and run Python code locally. Data analysis, file processing, automation — your AI does the work.</p>
-    </div>
-    <div class="agent-card">
-      <div class="agent-icon">📁</div>
-      <h3>File I/O</h3>
-      <p>Read and write files on your system. Summarize documents, create reports, process data.</p>
-    </div>
-    <div class="agent-card">
-      <div class="agent-icon">🎨</div>
-      <h3>Image Generation</h3>
-      <p>Generate images mid-conversation via ComfyUI. The only local agent that can create visuals on command.</p>
-    </div>
-    <div class="agent-card">
       <div class="agent-icon">🧠</div>
       <h3>Memory System</h3>
-      <p>Auto-saves tool results. Search past results by keyword, filter by category, export as markdown.</p>
+      <p>AI remembers you across conversations. Context-aware injection scales with model size. Auto-extraction every 3rd turn. Export/import as .md or .json.</p>
     </div>
     <div class="agent-card">
-      <div class="agent-icon">🔒</div>
-      <h3>Tool Approval</h3>
-      <p>Safe tools auto-execute. File writes and code execution ask permission first. You stay in control.</p>
+      <div class="agent-icon">⛓</div>
+      <h3>Agent Workflows</h3>
+      <p>Multi-step chains with visual builder. 3 built-in workflows: Research, Summarize URL, Code Review. Create custom workflows with prompts, tools, loops.</p>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">🔄</div>
+      <h3>Multi-Provider</h3>
+      <p>Ollama (local) + OpenAI-compatible (OpenRouter, Groq, LM Studio, vLLM) + Anthropic (Claude). Switch per conversation.</p>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">⚖</div>
+      <h3>A/B Compare</h3>
+      <p>Send the same prompt to two models side by side. Compare speed, quality, and token usage with parallel streaming.</p>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">🏆</div>
+      <h3>Local Benchmark</h3>
+      <p>One-click speed test any model on your hardware. Tokens/sec leaderboard across all tested models.</p>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">✏</div>
+      <h3>Regenerate / Edit</h3>
+      <p>Edit any user message and resend. Regenerate any AI response. Full conversation branching support.</p>
     </div>
   </div>
 
   <div class="agent-highlight">
-    <p><strong>Works with abliterated models.</strong> LU auto-fixes tool-calling templates via Ollama Modelfile. Models that other apps refuse to load work out of the box — with full agent capabilities.</p>
+    <p><strong>Security hardened.</strong> SSRF protection, prompt injection prevention, workflow recursion guards, localStorage quota protection. No more Python console windows on Windows.</p>
   </div>
 </section>
 
@@ -399,7 +399,11 @@ footer a:hover{color:var(--text)}
       <tr><td>Document Chat (RAG)</td><td class="check hl">Yes</td><td class="check">Yes</td><td class="cross">No</td><td class="cross">No</td></tr>
       <tr><td>Voice (STT + TTS)</td><td class="check hl">Yes</td><td class="check">Partial</td><td class="cross">No</td><td class="cross">No</td></tr>
       <tr><td>AI Agents + Tool Calling</td><td class="check hl">6 Tools</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
-      <tr><td>Agent Memory System</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
+      <tr><td>Memory System</td><td class="check hl">Yes</td><td class="cross">Plugin</td><td class="cross">No</td><td class="cross">No</td></tr>
+      <tr><td>Agent Workflows</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
+      <tr><td>Multi-Provider</td><td class="check hl">3 Providers</td><td class="check">Yes</td><td class="check">Yes</td><td class="cross">No</td></tr>
+      <tr><td>Model A/B Compare</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
+      <tr><td>Local Benchmark</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
       <tr><td>Abliterated Model Support</td><td class="check hl">Auto-fix</td><td class="cross">No</td><td class="cross">No</td><td class="check">Partial</td></tr>
     </tbody>
   </table>
@@ -436,19 +440,19 @@ footer a:hover{color:var(--text)}
 
   <div class="model-grid">
     <div class="model-card">
-      <div class="model-type">Text / Chat</div>
-      <h3>Qwen 3 (8B-30B) Abliterated</h3>
-      <p>Latest &amp; smartest open model. 6-18 GB VRAM. Exceptional reasoning, coding, and multilingual support.</p>
+      <div class="model-type">Agent / Chat</div>
+      <h3>Hermes 3 (8B-70B)</h3>
+      <p>Best for Agent Mode. Native tool calling, uncensored. 6-48 GB VRAM. The go-to agent model.</p>
+    </div>
+    <div class="model-card">
+      <div class="model-type">Text / Vision</div>
+      <h3>Gemma 4 26B MoE</h3>
+      <p>26B brain that runs like 4B. Vision + native tools. Apache 2.0. 8 GB VRAM. 128K context.</p>
     </div>
     <div class="model-card">
       <div class="model-type">Text / Chat</div>
-      <h3>Llama 3.1 8B Abliterated</h3>
-      <p>Fastest all-rounder. 6 GB VRAM. Uncensored, reliable, perfect entry point for any hardware.</p>
-    </div>
-    <div class="model-card">
-      <div class="model-type">Text / Reasoning</div>
-      <h3>DeepSeek R1 (8B-70B)</h3>
-      <p>Chain-of-thought reasoning. Shows its thinking process. 6-48 GB VRAM. Scales to your hardware.</p>
+      <h3>Qwen 3.5 Abliterated</h3>
+      <p>Best overall intelligence. 6-16 GB VRAM. Exceptional reasoning, coding, and multilingual.</p>
     </div>
     <div class="model-card">
       <div class="model-type">Image Generation</div>

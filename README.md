@@ -33,24 +33,15 @@ No cloud. No censorship. No data collection. Your AI, your rules.
 
 ---
 
-## v2.0 — What's New
+## v2.0 — Major Release
 
-**Security Hardening**
-- SSRF protection on all external fetches (private IP/scheme blocking)
-- Memory content sanitization prevents prompt injection via stored memories
-- Workflow recursion guard (max depth 5) and loop hard cap (max 100 iterations)
-- localStorage quota protection with automatic cleanup prevents data loss
-- API key storage disclaimer for cloud providers
+**Headline Features:** Memory System, Agent Workflows, Multi-Provider, A/B Compare, Benchmark, Regenerate/Edit Messages
 
-**New Features**
-- **Regenerate / Edit Messages** — Edit any user message and resend, or regenerate any AI response
-- **Memory Debug Panel** — See which memories are injected into the current prompt
-- **Rate-limited Auto-Extraction** — Memory extraction every 3rd turn with short-response skip, cost warnings for cloud providers
+**Security:** SSRF protection, prompt injection prevention, localStorage quota protection, workflow recursion guards
 
-**UI Improvements**
-- A/B Compare and Benchmark accessible from the main header navigation
-- Homepage quick-action buttons for Compare Models and Benchmark
-- ErrorBoundary wrapping around all main views prevents white-screen crashes
+**Polish:** Video preview fix, no more Python console windows on Windows, light mode consistency, installed model badges
+
+See the full [Release Notes](https://github.com/PurpleDoubleD/locally-uncensored/releases/tag/v2.0.0).
 
 ---
 
@@ -288,9 +279,11 @@ COMFYUI_PATH=/path/to/your/ComfyUI
 - [x] **Chat Export** — Markdown and JSON export
 - [x] **Keyboard Shortcuts** — Power-user shortcuts (Ctrl+N, Ctrl+E, Ctrl+/)
 - [x] **Search Providers** — Brave Search, Tavily, SearXNG, DuckDuckGo
+- [x] **Regenerate / Edit** — Edit user messages, regenerate AI responses
+- [x] **Memory Debug** — See which memories are injected into prompts
 - [ ] **MCP Support** — Model Context Protocol for extensible tool calling
 - [ ] **Create Modes** — img2img, upscale, inpainting, background removal
-- [ ] **Workflow Chains** — Chain multiple generation steps into pipelines
+- [x] **Agent Workflows** — Multi-step workflow chains with visual builder
 - [ ] **Plugin System** — Extend the app with community plugins
 - [ ] **Mobile UI** — Responsive layout for phone/tablet access
 
