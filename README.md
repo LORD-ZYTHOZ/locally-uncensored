@@ -34,15 +34,11 @@ No cloud. No censorship. No data collection. Your AI, your rules.
 
 ---
 
-## v2.0 — Major Release
+## v2.2 — Latest Release
 
-**Headline Features:** Memory System, Agent Workflows, Multi-Provider, A/B Compare, Benchmark, Regenerate/Edit Messages
+**New:** Custom dark titlebar (no more Windows chrome), branded NSIS installer, Qwen3-Coder integration, Download Manager with multi-pull + pause/resume, auto-unload on model switch, redesigned Model Selector, Update Checker
 
-**Security:** SSRF protection, prompt injection prevention, localStorage quota protection, workflow recursion guards
-
-**Polish:** Video preview fix, no more Python console windows on Windows, light mode consistency, installed model badges
-
-See the full [Release Notes](https://github.com/PurpleDoubleD/locally-uncensored/releases/tag/v2.0.0).
+See the full [Release Notes](https://github.com/PurpleDoubleD/locally-uncensored/releases/tag/v2.2.0).
 
 ---
 
@@ -97,6 +93,8 @@ Tired of switching between Ollama for chat, ComfyUI for images, and another tool
 - **25+ Personas** — From Helpful Assistant to Roast Master, switchable via dropdown
 - **Model Manager** — Browse uncensored + mainstream models. HOT/AGENT badges. Variant selector for multi-size downloads.
 - **Thinking Display** — See the AI's reasoning in collapsible blocks
+- **Custom Dark Titlebar** — No native Windows chrome. Sleek frameless window with drag region, matching the app's luxury dark aesthetic.
+- **Branded Installer** — Dark-themed NSIS installer with custom header and sidebar images. Premium from first click.
 - **Linear/Arc UI** — Compact, monochrome, collapsible settings. Premium feel.
 - **Privacy First** — Zero tracking. All API calls proxied locally. No analytics.
 - **100% Local** — Everything runs on your machine (cloud providers optional)
@@ -219,6 +217,7 @@ Just install models in the standard locations and the app picks them up.
 | **Hermes 3 70B** | 42 GB | 48 GB | **Best Agent** — maximum power |
 | **Gemma 4 26B MoE** | 18 GB | 8 GB | 26B brain, runs like 4B. Vision + tools. Apache 2.0 |
 | Gemma 4 E4B | 9.6 GB | 6 GB | Vision + native tools. 128K context |
+| **Qwen3-Coder 30B** | 18 GB | 16 GB | **Best coding agent** — 256K context, native tool calling |
 | Qwen 3.5 Abliterated | 5–18 GB | 6–16 GB | Best overall intelligence |
 | Qwen 3 8B Abliterated | 5.2 GB | 6 GB | Fast, great for coding |
 | DeepSeek R1 (8B–70B) | 5–42 GB | 6–48 GB | Chain-of-thought reasoning |
