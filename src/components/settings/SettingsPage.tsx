@@ -15,6 +15,8 @@ import { MemorySettings } from './MemorySettings'
 import { ProviderSettings } from './ProviderConfig'
 import { WorkflowList } from '../agents/WorkflowList'
 import { WorkflowBuilder } from '../agents/WorkflowBuilder'
+import { useUpdateStore } from '../../stores/updateStore'
+import { ArrowUpCircle } from 'lucide-react'
 
 // ── Collapsible Section ─────────────────────────────────────────
 
@@ -328,6 +330,9 @@ export function SettingsPage() {
           </Section>
         )}
 
+        {/* ── Updates ──────────────────────────────── */}
+        <UpdateSection />
+
         {/* ── Reset ──────────────────────────────────── */}
         <div className="pt-3 pb-6">
           <button
@@ -339,5 +344,77 @@ export function SettingsPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Update Section ──────────────────────────────────────────────
+
+function UpdateSection() {
+  const { currentVersion, latestVersion, updateAvailable, releaseNotes, dismissed, isChecking, checkForUpdate, clearDismiss, openReleasePage } = useUpdateStore()
+  const showUpdate = updateAvailable && latestVersion
+
+  return (
+    <Section title="Updates">
+      <div className="space-y-3 py-2">
+        {/* Current version */}
+        <div className="flex items-center justify-between">
+          <span className="text-[0.65rem] text-gray-500">Current Version</span>
+          <span className="text-[0.65rem] text-gray-300 font-mono">v{currentVersion}</span>
+        </div>
+
+        {/* Latest version */}
+        {latestVersion && (
+          <div className="flex items-center justify-between">
+            <span className="text-[0.65rem] text-gray-500">Latest Version</span>
+            <span className={`text-[0.65rem] font-mono ${updateAvailable ? 'text-emerald-400' : 'text-gray-300'}`}>
+              v{latestVersion}
+            </span>
+          </div>
+        )}
+
+        {/* Status */}
+        {showUpdate ? (
+          <div className="rounded-lg bg-emerald-500/[0.08] border border-emerald-500/20 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <ArrowUpCircle size={14} className="text-emerald-400" />
+              <span className="text-[0.65rem] font-medium text-emerald-400">Update available!</span>
+            </div>
+            {releaseNotes && (
+              <p className="text-[0.55rem] text-gray-500 leading-relaxed mb-2.5 line-clamp-4 whitespace-pre-line">{releaseNotes}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={openReleasePage}
+                className="px-3 py-1.5 rounded-md text-[0.6rem] font-medium bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+              >
+                Download Update
+              </button>
+              {dismissed === latestVersion && (
+                <button
+                  onClick={clearDismiss}
+                  className="px-3 py-1.5 rounded-md text-[0.6rem] text-gray-500 hover:text-gray-300 hover:bg-white/[0.04] transition-colors"
+                >
+                  Show Badge Again
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-[0.6rem] text-gray-600">
+            <Check size={12} className="text-emerald-500" />
+            You are on the latest version.
+          </div>
+        )}
+
+        {/* Manual check */}
+        <button
+          onClick={() => { useUpdateStore.setState({ lastChecked: null }); checkForUpdate() }}
+          disabled={isChecking}
+          className="text-[0.6rem] text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-40"
+        >
+          {isChecking ? 'Checking...' : 'Check for updates'}
+        </button>
+      </div>
+    </Section>
   )
 }

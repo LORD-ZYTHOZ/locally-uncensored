@@ -2,37 +2,43 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, Check, Loader2, Power } from 'lucide-react'
 import { useModels } from '../../hooks/useModels'
+import { useModelStore } from '../../stores/modelStore'
 import { unloadAllModels } from '../../api/ollama'
 import { displayModelName } from '../../api/providers'
 import { formatBytes } from '../../lib/formatters'
 import type { AIModel } from '../../types/models'
 
-// ── Provider + Type Badges ─────────────────────────────────────
+// ── Badge configs ─────────────────────────────────────────────
 
-const TYPE_BADGE: Record<string, { label: string; color: string }> = {
-  text: { label: 'Text', color: 'bg-blue-500/15 text-blue-300' },
-  image: { label: 'Image', color: 'bg-purple-500/15 text-purple-300' },
-  video: { label: 'Video', color: 'bg-green-500/15 text-green-300' },
+const TYPE_COLOR: Record<string, string> = {
+  text: 'text-blue-400',
+  image: 'text-purple-400',
+  video: 'text-emerald-400',
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  text: 'TXT',
+  image: 'IMG',
+  video: 'VID',
 }
 
 const PROVIDER_BADGE: Record<string, { label: string; color: string }> = {
-  ollama: { label: 'Ollama', color: 'bg-emerald-500/15 text-emerald-300' },
-  openai: { label: 'Cloud', color: 'bg-sky-500/15 text-sky-300' },
-  anthropic: { label: 'Claude', color: 'bg-violet-500/15 text-violet-300' },
+  ollama: { label: 'Ollama', color: 'text-emerald-400/70' },
+  openai: { label: 'Cloud', color: 'text-sky-400/70' },
+  anthropic: { label: 'Claude', color: 'text-violet-400/70' },
 }
 
 function getProviderBadge(model: AIModel) {
   const provider = ('provider' in model && model.provider) || 'ollama'
   const providerName = ('providerName' in model && model.providerName) || 'Ollama'
 
-  // Use provider-specific name if not just "Ollama"
   if (providerName && providerName !== 'Ollama' && providerName !== 'OpenAI-Compatible' && providerName !== 'Anthropic') {
     return { label: providerName, color: PROVIDER_BADGE[provider]?.color || PROVIDER_BADGE.ollama.color }
   }
   return PROVIDER_BADGE[provider] || PROVIDER_BADGE.ollama
 }
 
-// ── Group models by provider ───────────────────────────────────
+// ── Group models by provider ──────────────────────────────────
 
 function groupByProvider(models: AIModel[]): { provider: string; models: AIModel[] }[] {
   const groups: Record<string, AIModel[]> = {}
@@ -42,7 +48,6 @@ function groupByProvider(models: AIModel[]): { provider: string; models: AIModel
     groups[providerName].push(m)
   }
 
-  // Sort: Ollama first, then alphabetical
   return Object.entries(groups)
     .sort(([a], [b]) => {
       if (a === 'Ollama') return -1
@@ -52,24 +57,21 @@ function groupByProvider(models: AIModel[]): { provider: string; models: AIModel
     .map(([provider, models]) => ({ provider, models }))
 }
 
-// ── Component ──────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────
 
 export function ModelSelector() {
   const { models, activeModel, setActiveModel, fetchModels } = useModels()
+  const isModelLoading = useModelStore((s) => s.isModelLoading)
   const [open, setOpen] = useState(false)
   const [unloading, setUnloading] = useState(false)
   const [unloadDone, setUnloadDone] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    fetchModels()
-  }, [fetchModels])
+  useEffect(() => { fetchModels() }, [fetchModels])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -77,129 +79,153 @@ export function ModelSelector() {
 
   const activeDisplayName = activeModel ? displayModelName(activeModel).split(':')[0] : 'Select Model'
   const activeModelObj = models.find((m) => m.name === activeModel)
+  const activeType = activeModelObj?.type || 'text'
   const groups = groupByProvider(models)
+  const hasOllamaModels = models.some(m => m.type === 'text' && (('provider' in m && m.provider === 'ollama') || !('provider' in m)))
 
   return (
     <div ref={ref} className="relative">
+      {/* ── Trigger Button ── */}
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10 transition-all text-sm"
+        className={`
+          group flex items-center gap-1.5 h-[26px] px-2 rounded-md
+          bg-transparent border transition-all text-[0.7rem]
+          hover:bg-white/[0.04]
+          ${isModelLoading
+            ? 'border-blue-500/40 shadow-[0_0_6px_rgba(59,130,246,0.2)]'
+            : 'border-white/[0.06] hover:border-white/[0.1]'
+          }
+        `}
       >
-        {activeModelObj && (
-          <>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${TYPE_BADGE[activeModelObj.type]?.color || TYPE_BADGE.text.color}`}>
-              {TYPE_BADGE[activeModelObj.type]?.label || 'Text'}
-            </span>
-            {('provider' in activeModelObj && activeModelObj.provider && activeModelObj.provider !== 'ollama') && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getProviderBadge(activeModelObj).color}`}>
-                {getProviderBadge(activeModelObj).label}
-              </span>
-            )}
-          </>
+        {/* Type indicator dot */}
+        <span className={`w-1.5 h-1.5 rounded-full ${
+          activeType === 'text' ? 'bg-blue-400' : activeType === 'image' ? 'bg-purple-400' : 'bg-emerald-400'
+        } ${isModelLoading ? 'animate-pulse' : ''}`} />
+
+        {/* Model name */}
+        <span className="text-gray-300 max-w-[140px] truncate leading-none">
+          {activeDisplayName}
+        </span>
+
+        {/* Chevron / Spinner */}
+        {isModelLoading ? (
+          <Loader2 size={10} className="animate-spin text-blue-400 ml-0.5" />
+        ) : (
+          <ChevronDown size={10} className={`text-gray-500 transition-transform ml-0.5 ${open ? 'rotate-180' : ''}`} />
         )}
-        <span className="text-gray-700 dark:text-gray-300 max-w-[180px] truncate">{activeDisplayName}</span>
-        <ChevronDown size={14} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
+      {/* ── Dropdown ── */}
       <AnimatePresence>
         {open && (
           <motion.div
-            className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-80 rounded-xl overflow-hidden z-50 bg-white dark:bg-[#2a2a2a] border border-gray-200 dark:border-white/10 shadow-xl"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
+            className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 w-72 rounded-lg overflow-hidden z-50 bg-[#0f0f0f] border border-white/[0.06] shadow-2xl shadow-black/50"
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
           >
-            <div className="p-2 max-h-80 overflow-y-auto scrollbar-thin">
+            {/* Scrollable model list */}
+            <div className="py-1 max-h-[280px] overflow-y-auto scrollbar-thin">
               {models.length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-4">No models available</p>
+                <p className="text-[0.65rem] text-gray-600 text-center py-3">No models available</p>
               )}
 
               {groups.map(({ provider, models: groupModels }) => (
                 <div key={provider}>
-                  {/* Provider section header (only if multiple providers) */}
+                  {/* Section header */}
                   {groups.length > 1 && (
-                    <div className="px-2 pt-2 pb-1">
-                      <span className="text-[0.55rem] font-semibold uppercase tracking-wider text-gray-500">{provider}</span>
+                    <div className="px-2.5 pt-2 pb-0.5">
+                      <span className="text-[0.55rem] font-medium uppercase tracking-widest text-gray-600">
+                        {provider}
+                      </span>
                     </div>
                   )}
 
                   {groupModels.map((model: AIModel) => {
-                    const badge = TYPE_BADGE[model.type] || TYPE_BADGE.text
                     const modelDisplayName = displayModelName(model.name)
-                    const providerBadge = getProviderBadge(model)
                     const modelProvider = ('provider' in model && model.provider) || 'ollama'
+                    const providerBadge = getProviderBadge(model)
+                    const isActive = model.name === activeModel
 
                     return (
                       <button
                         key={model.name}
-                        onClick={() => {
-                          setActiveModel(model.name)
-                          setOpen(false)
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-                          model.name === activeModel
-                            ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white'
-                            : 'hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
-                        }`}
+                        onClick={() => { setActiveModel(model.name); setOpen(false) }}
+                        className={`
+                          w-full flex items-center gap-2 px-2.5 py-[5px] mx-1 rounded text-left transition-colors
+                          ${isActive
+                            ? 'bg-white/[0.06] text-white'
+                            : 'text-gray-400 hover:bg-white/[0.03] hover:text-gray-200'
+                          }
+                        `}
+                        style={{ width: 'calc(100% - 8px)' }}
                       >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{modelDisplayName}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badge.color}`}>
-                              {badge.label}
+                        {/* Type dot */}
+                        <span className={`w-1 h-1 rounded-full shrink-0 ${
+                          model.type === 'text' ? 'bg-blue-400/70' : model.type === 'image' ? 'bg-purple-400/70' : 'bg-emerald-400/70'
+                        }`} />
+
+                        {/* Model info */}
+                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                          <span className={`text-[0.7rem] truncate ${isActive ? 'text-white' : ''}`}>
+                            {modelDisplayName}
+                          </span>
+
+                          {/* Subtle meta */}
+                          {model.type !== 'text' && (
+                            <span className={`text-[8px] uppercase font-medium tracking-wide ${TYPE_COLOR[model.type] || 'text-gray-500'} opacity-60`}>
+                              {TYPE_LABEL[model.type] || model.type}
                             </span>
-                            {modelProvider !== 'ollama' && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${providerBadge.color}`}>
-                                {providerBadge.label}
-                              </span>
-                            )}
-                            {model.type === 'text' && 'details' in model && (model as any).details && (
-                              <span className="text-[10px] text-gray-400">
-                                {(model as any).details.parameter_size} · {(model as any).details.quantization_level}
-                              </span>
-                            )}
-                            {model.size > 0 && (
-                              <span className="text-[10px] text-gray-400">{formatBytes(model.size)}</span>
-                            )}
-                            {'contextLength' in model && (model as any).contextLength && (
-                              <span className="text-[10px] text-gray-500">{Math.round((model as any).contextLength / 1000)}K ctx</span>
-                            )}
-                          </div>
+                          )}
+                          {modelProvider !== 'ollama' && (
+                            <span className={`text-[8px] ${providerBadge.color}`}>
+                              {providerBadge.label}
+                            </span>
+                          )}
                         </div>
-                        {model.name === activeModel && <Check size={16} className="text-blue-500 shrink-0" />}
+
+                        {/* Details on right */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {model.type === 'text' && 'details' in model && (model as any).details && (
+                            <span className="text-[8px] text-gray-600">
+                              {(model as any).details.parameter_size}
+                            </span>
+                          )}
+                          {isActive && <Check size={11} className="text-blue-400" />}
+                        </div>
                       </button>
                     )
                   })}
                 </div>
               ))}
-
-              {/* Unload All text models button */}
-              {models.some(m => m.type === 'text' && (('provider' in m && m.provider === 'ollama') || !('provider' in m))) && (
-                <>
-                  <div className="border-t border-gray-200 dark:border-white/10 my-1" />
-                  <button
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      if (unloading) return
-                      setUnloading(true)
-                      setUnloadDone(false)
-                      try {
-                        await unloadAllModels()
-                        setUnloadDone(true)
-                        setTimeout(() => setUnloadDone(false), 2000)
-                      } catch { /* ignore */ }
-                      finally { setUnloading(false) }
-                    }}
-                    disabled={unloading}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                  >
-                    {unloading ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
-                    <span>{unloadDone ? 'Models unloaded!' : unloading ? 'Unloading...' : 'Unload all Ollama models'}</span>
-                  </button>
-                </>
-              )}
             </div>
+
+            {/* Sticky footer: Unload */}
+            {hasOllamaModels && (
+              <div className="border-t border-white/[0.04] px-1 py-1">
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    if (unloading) return
+                    setUnloading(true)
+                    setUnloadDone(false)
+                    try {
+                      await unloadAllModels()
+                      setUnloadDone(true)
+                      setTimeout(() => setUnloadDone(false), 2000)
+                    } catch { /* ignore */ }
+                    finally { setUnloading(false) }
+                  }}
+                  disabled={unloading}
+                  className="w-full flex items-center justify-center gap-1.5 px-2 py-[5px] rounded text-[0.6rem] text-red-500/60 hover:text-red-400 hover:bg-red-500/[0.06] transition-colors disabled:opacity-40"
+                >
+                  {unloading ? <Loader2 size={10} className="animate-spin" /> : <Power size={10} />}
+                  <span>{unloadDone ? 'Unloaded' : unloading ? 'Unloading...' : 'Unload all models'}</span>
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

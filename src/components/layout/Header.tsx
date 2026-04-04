@@ -4,6 +4,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useCompareStore } from '../../stores/compareStore'
 import { ModelSelector } from '../models/ModelSelector'
+import { UpdateBadge } from './UpdateBadge'
 
 export function Header() {
   const { currentView, toggleSidebar, setView } = useUIStore()
@@ -84,6 +85,7 @@ export function Header() {
         {navBtn('benchmark', <Trophy size={14} />, 'Benchmark')}
         {navBtn('models', <Layers size={14} />, 'Models')}
         {navBtn('settings', <Settings size={14} />, 'Settings')}
+        <UpdateBadge />
       </div>
     </header>
   )

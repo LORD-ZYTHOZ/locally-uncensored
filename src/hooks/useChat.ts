@@ -121,6 +121,7 @@ export function useChat() {
     abortRef.current = abort
     setIsGenerating(true)
     setIsLoadingModel(true)
+    useModelStore.getState().setIsModelLoading(true)
     contentRef.current = ""
     thinkingRef.current = ""
     isThinkingRef.current = false
@@ -148,6 +149,7 @@ export function useChat() {
         if (firstChunk) {
           firstChunk = false
           setIsLoadingModel(false)
+          useModelStore.getState().setIsModelLoading(false)
         }
 
         if (chunk.content) {
@@ -211,6 +213,7 @@ export function useChat() {
     } finally {
       setIsGenerating(false)
       setIsLoadingModel(false)
+      useModelStore.getState().setIsModelLoading(false)
       abortRef.current = null
 
       // Auto-speak response if TTS is enabled
