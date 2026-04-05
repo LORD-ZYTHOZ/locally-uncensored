@@ -1,33 +1,46 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, Trash2, Edit3, Check, X } from 'lucide-react'
+import { Plus, Search, Trash2, Edit3, Check, X, MessageSquare, Code, Bot } from 'lucide-react'
 import { useChatStore } from '../../stores/chatStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useModelStore } from '../../stores/modelStore'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { useCodexStore } from '../../stores/codexStore'
 import { formatDate, truncate } from '../../lib/formatters'
+import type { ChatMode } from '../../types/codex'
+
+const MODE_TABS: { mode: ChatMode; label: string; icon: typeof Code; disabled?: boolean; tag?: string }[] = [
+  { mode: 'lu', label: 'LU', icon: MessageSquare },
+  { mode: 'codex', label: 'Codex', icon: Code },
+  { mode: 'openclaw', label: 'OpenClaw', icon: Bot, disabled: true, tag: 'Soon' },
+]
 
 export function Sidebar() {
   const { conversations, activeConversationId, createConversation, deleteConversation, renameConversation, setActiveConversation } = useChatStore()
   const { sidebarOpen, setView } = useUIStore()
   const { activeModel } = useModelStore()
   const { getActivePersona } = useSettingsStore()
+  const chatMode = useCodexStore((s) => s.chatMode)
+  const setChatMode = useCodexStore((s) => s.setChatMode)
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
 
+  // Filter conversations by current mode
+  const modeConversations = conversations.filter(c => (c.mode || 'lu') === chatMode)
+
   const filtered = search
-    ? conversations.filter(
+    ? modeConversations.filter(
         (c) =>
           c.title.toLowerCase().includes(search.toLowerCase()) ||
           c.messages.some((m) => m.content.toLowerCase().includes(search.toLowerCase()))
       )
-    : conversations
+    : modeConversations
 
   const handleNewChat = () => {
     const persona = getActivePersona()
     if (activeModel) {
-      createConversation(activeModel, persona?.systemPrompt || '')
+      createConversation(activeModel, persona?.systemPrompt || '', chatMode)
       setView('chat')
     }
   }
@@ -49,16 +62,35 @@ export function Sidebar() {
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.15 }}
         >
-          {/* New Chat + Search */}
-          <div className="px-2 pt-2 pb-1 space-y-1.5">
-            <button
-              onClick={handleNewChat}
-              className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[0.7rem] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/[0.05] transition-all"
-            >
-              <Plus size={13} />
-              <span>New Chat</span>
-            </button>
+          {/* Mode Tabs (LU | Codex | OpenClaw) */}
+          <div className="flex items-center gap-0.5 px-2 pt-2 pb-1">
+            {MODE_TABS.map(({ mode, label, icon: Icon, disabled, tag }) => {
+              const isActive = chatMode === mode
+              return (
+                <button
+                  key={mode}
+                  onClick={() => { if (!disabled) { setChatMode(mode); setActiveConversation(null); setView('chat') } }}
+                  disabled={disabled}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[0.6rem] font-medium transition-all flex-1 justify-center ${
+                    isActive
+                      ? 'bg-gray-200 dark:bg-white/10 text-gray-900 dark:text-white border border-gray-300 dark:border-white/15'
+                      : disabled
+                        ? 'text-gray-400 dark:text-gray-700 cursor-default'
+                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 border border-transparent'
+                  }`}
+                >
+                  <Icon size={9} />
+                  <span className="relative">
+                    {label}
+                    {tag && <span className="absolute inset-0 flex items-center justify-center text-[0.4rem] text-red-500 dark:text-red-400 font-bold bg-gray-50/80 dark:bg-[#0a0a0a]/80">{tag}</span>}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
 
+          {/* Search */}
+          <div className="px-2 pb-1">
             <div className="relative">
               <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-600" />
               <input
@@ -131,6 +163,17 @@ export function Sidebar() {
                 {search ? 'No results' : 'No conversations'}
               </p>
             )}
+          </div>
+
+          {/* New Chat — bottom */}
+          <div className="px-2 pb-2 pt-1 border-t border-white/[0.04]">
+            <button
+              onClick={handleNewChat}
+              className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-[0.65rem] text-gray-500 hover:text-white hover:bg-white/[0.05] border border-dashed border-white/[0.08] hover:border-white/15 transition-all"
+            >
+              <Plus size={12} />
+              <span>New Chat</span>
+            </button>
           </div>
         </motion.aside>
       )}

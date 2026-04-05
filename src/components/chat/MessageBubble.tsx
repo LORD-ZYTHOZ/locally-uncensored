@@ -63,8 +63,8 @@ export function MessageBubble({ message, onRegenerate, onEdit }: Props) {
         className={
           'w-6 h-6 rounded-md flex items-center justify-center shrink-0 ' +
           (isUser
-            ? 'bg-white/8 border border-white/10'
-            : 'bg-white/5 border border-white/[0.06]')
+            ? 'bg-gray-100 dark:bg-white/8 border border-gray-200 dark:border-white/10'
+            : 'bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/[0.06]')
         }
       >
         {isUser ? <User size={11} className="text-gray-400" /> : <Bot size={11} className="text-gray-500" />}
@@ -112,8 +112,8 @@ export function MessageBubble({ message, onRegenerate, onEdit }: Props) {
           className={
             'rounded-lg px-2.5 py-1.5 relative ' +
             (isUser
-              ? 'bg-white/[0.06] border border-white/[0.08]'
-              : 'bg-white/[0.03] border border-white/[0.04]')
+              ? 'bg-gray-100 dark:bg-white/[0.06] border border-gray-200 dark:border-white/[0.08]'
+              : 'bg-white dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.04]')
           }
         >
           {isUser && isEditing ? (
@@ -130,7 +130,7 @@ export function MessageBubble({ message, onRegenerate, onEdit }: Props) {
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEdit() }
                   if (e.key === 'Escape') cancelEdit()
                 }}
-                className="w-full bg-transparent text-[0.78rem] leading-relaxed text-gray-200 resize-none focus:outline-none"
+                className="w-full bg-transparent text-[0.78rem] leading-relaxed text-gray-800 dark:text-gray-200 resize-none focus:outline-none"
               />
               <div className="flex items-center gap-1 justify-end">
                 <button onClick={confirmEdit} className="p-0.5 rounded hover:bg-green-500/20 text-green-500 transition-colors"><Check size={11} /></button>
@@ -138,7 +138,7 @@ export function MessageBubble({ message, onRegenerate, onEdit }: Props) {
               </div>
             </div>
           ) : isUser ? (
-            <p className="text-[0.78rem] leading-relaxed text-gray-200 whitespace-pre-wrap">{message.content}</p>
+            <p className="text-[0.78rem] leading-relaxed text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{message.content}</p>
           ) : (
             <div className="text-[0.78rem] leading-relaxed">
               <MarkdownRenderer content={message.content} />

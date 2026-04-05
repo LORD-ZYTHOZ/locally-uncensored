@@ -117,7 +117,7 @@ export function ChatInput({ onSend, onStop, isGenerating, pendingApproval, onApp
         className={`flex flex-col rounded-lg border px-2.5 py-2 transition-colors ${
           isDragOver
             ? 'bg-blue-500/5 border-blue-500/30'
-            : 'bg-white/[0.03] border-white/[0.06]'
+            : 'bg-gray-50 dark:bg-white/[0.03] border-gray-200 dark:border-white/[0.06]'
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -181,7 +181,7 @@ export function ChatInput({ onSend, onStop, isGenerating, pendingApproval, onApp
             onPaste={handlePaste}
             placeholder={isDragOver ? "Drop images here..." : isTranscribing ? "Transcribing..." : isVoiceRecording ? "Recording..." : "Message..."}
             rows={1}
-            className="flex-1 bg-transparent resize-none text-gray-200 placeholder-gray-600 focus:outline-none text-[0.75rem] leading-relaxed max-h-[200px]"
+            className="flex-1 bg-transparent resize-none text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none text-[0.75rem] leading-relaxed max-h-[200px]"
           />
 
           {isGenerating ? (

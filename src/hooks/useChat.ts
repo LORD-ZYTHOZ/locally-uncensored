@@ -12,7 +12,7 @@ import { getModelMaxTokens } from "../lib/context-compaction"
 import { useAgentChat } from "./useAgentChat"
 import { useMemory } from "./useMemory"
 import { useAgentModeStore } from "../stores/agentModeStore"
-import { getProviderForModel } from "../api/providers"
+import { getProviderForModel, getProviderIdFromModel } from "../api/providers"
 import type { ChatStreamChunk } from "../api/providers/types"
 import type { ImageAttachment } from "../types/chat"
 
@@ -112,6 +112,12 @@ export function useChat() {
       // Memory injection is non-critical
     }
 
+    // For non-Ollama providers, inject thinking via system prompt
+    const providerId = getProviderIdFromModel(activeModel)
+    if (settings.thinkingEnabled && providerId !== 'ollama') {
+      systemPrompt = (systemPrompt || '') + '\n\nBefore answering, reason through your thinking inside <think></think> tags. Your thinking will be hidden from the user. After thinking, provide your answer outside the tags.'
+    }
+
     const messages = [
       ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
       ...conv.messages
@@ -198,6 +204,12 @@ export function useChat() {
         }
 
         if (chunk.done) {
+          // Strip Gemma 4 channel tags
+          contentRef.current = contentRef.current
+            .replace(/<\|?channel>?\s*thought\s*/gi, '')
+            .replace(/<\|?channel\|?>/gi, '')
+            .replace(/<channel\|>/gi, '')
+            .trim()
           useChatStore
             .getState()
             .updateMessageContent(convId!, assistantMessage.id, contentRef.current)

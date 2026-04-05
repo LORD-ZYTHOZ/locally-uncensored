@@ -27,6 +27,7 @@ export interface Conversation {
   messages: Message[]
   model: string
   systemPrompt: string
+  mode?: 'lu' | 'codex' | 'openclaw'
   createdAt: number
   updatedAt: number
 }

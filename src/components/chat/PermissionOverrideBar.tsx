@@ -41,10 +41,10 @@ export function PermissionOverrideBar() {
             disabled={isLocked}
             className={`flex items-center gap-1.5 w-full px-1.5 py-[3px] text-[0.5rem] transition-colors ${
               isLocked
-                ? 'text-gray-700 cursor-default'
+                ? 'text-gray-400 dark:text-gray-700 cursor-default'
                 : isOn
-                  ? 'text-gray-300 hover:bg-white/5'
-                  : 'text-gray-600 hover:bg-white/5'
+                  ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
+                  : 'text-gray-400 dark:text-gray-600 hover:bg-gray-100 dark:hover:bg-white/5'
             }`}
           >
             {isLocked ? (

@@ -21,6 +21,9 @@ import { ABCompare } from './ABCompare'
 import { useCompareStore } from '../../stores/compareStore'
 import { exportConversation } from '../../lib/chat-export'
 import { PermissionOverrideBar } from './PermissionOverrideBar'
+import { RealtimeCounter } from './RealtimeCounter'
+import { CodexView } from './CodexView'
+import { useCodexStore } from '../../stores/codexStore'
 
 export function ChatView() {
   const { sendMessage, stopGeneration, isGenerating, isLoadingModel, regenerateMessage, editAndResend, pendingApproval, approveToolCall, rejectToolCall } = useChat()
@@ -37,6 +40,7 @@ export function ChatView() {
   const allPersonas = useSettingsStore((s) => s.personas)
   const thinkingEnabled = useSettingsStore((s) => s.settings.thinkingEnabled)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const chatMode = useCodexStore((s) => s.chatMode)
 
   const docCount = useRAGStore((s) =>
     activeConversationId ? (s.documents[activeConversationId] || []).length : 0
@@ -85,15 +89,23 @@ export function ChatView() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
           >
-            <div className="flex-1 flex flex-col min-w-0">
-              {/* Top bar — compact */}
+            <div className="flex-1 flex flex-col min-w-0 relative">
+              {/* Codex mode */}
+              {chatMode === 'codex' ? (
+                <CodexView />
+              ) : chatMode === 'openclaw' ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <p className="text-[0.7rem] text-gray-600">OpenClaw — Coming Soon</p>
+                </div>
+              ) : (<>
+              {/* Top bar — compact (LU mode) */}
               <div className="flex items-center gap-1.5 px-2 pt-0.5">
                 {/* Left: Tools Active dropdown (only when agent is active) */}
                 {isAgentActive && (
                   <div className="relative">
                     <button
                       onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded border border-white/[0.06] text-gray-500 hover:border-white/15 transition-colors text-[0.55rem]"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded border border-gray-200 dark:border-white/[0.06] text-gray-500 hover:border-gray-400 dark:hover:border-white/15 transition-colors text-[0.55rem]"
                     >
                       <Wrench size={9} className="text-green-400" />
                       <span>Tools</span>
@@ -102,7 +114,7 @@ export function ChatView() {
                     {toolsDropdownOpen && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setToolsDropdownOpen(false)} />
-                        <div className="absolute left-0 top-full mt-0.5 z-50 w-28 rounded-md bg-[#1a1a1a] border border-white/10 shadow-xl py-0.5 px-0.5">
+                        <div className="absolute left-0 top-full mt-0.5 z-50 w-28 rounded-md bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-xl py-0.5 px-0.5">
                           <PermissionOverrideBar />
                         </div>
                       </>
@@ -116,7 +128,7 @@ export function ChatView() {
                   className={`flex items-center gap-1 px-2 py-0.5 rounded border transition-colors text-[0.55rem] ${
                     thinkingEnabled
                       ? 'border-blue-500/30 text-blue-400'
-                      : 'border-white/[0.06] text-gray-600'
+                      : 'border-gray-200 dark:border-white/[0.06] text-gray-600'
                   }`}
                   title="Toggle thinking mode — model reasons before answering"
                 >
@@ -137,7 +149,7 @@ export function ChatView() {
                 <div className="relative">
                   <button
                     onClick={() => setExportOpen(!exportOpen)}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded border border-white/[0.06] hover:border-white/15 text-gray-500 transition-colors text-[0.55rem]"
+                    className="flex items-center gap-1 px-2 py-0.5 rounded border border-gray-200 dark:border-white/[0.06] hover:border-gray-400 dark:hover:border-white/15 text-gray-500 transition-colors text-[0.55rem]"
                     title="Export chat"
                   >
                     <Download size={10} />
@@ -145,7 +157,7 @@ export function ChatView() {
                   {exportOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setExportOpen(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-50 w-32 rounded-lg bg-[#1a1a1a] border border-white/10 shadow-xl py-1">
+                      <div className="absolute right-0 top-full mt-1 z-50 w-32 rounded-lg bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-xl py-1">
                         {(['markdown', 'json'] as const).map(fmt => (
                           <button
                             key={fmt}
@@ -168,7 +180,7 @@ export function ChatView() {
                 <div className="relative">
                   <button
                     onClick={() => setPersonaOpen(!personaOpen)}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded border border-white/[0.06] hover:border-white/15 text-gray-500 transition-colors text-[0.55rem]"
+                    className="flex items-center gap-1 px-2 py-0.5 rounded border border-gray-200 dark:border-white/[0.06] hover:border-gray-400 dark:hover:border-white/15 text-gray-500 transition-colors text-[0.55rem]"
                   >
                     <User size={10} />
                     <span className="max-w-[60px] truncate">{activePersona?.name || 'No Filter'}</span>
@@ -177,9 +189,9 @@ export function ChatView() {
                   {personaOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setPersonaOpen(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-50 w-44 max-h-[220px] overflow-y-auto scrollbar-thin rounded-lg bg-[#1a1a1a] border border-white/10 shadow-xl py-1">
+                      <div className="absolute right-0 top-full mt-1 z-50 w-44 max-h-[220px] overflow-y-auto scrollbar-thin rounded-lg bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-xl py-1">
                         {activePersona && (
-                          <div className="px-2 pb-1 mb-1 border-b border-white/[0.06]">
+                          <div className="px-2 pb-1 mb-1 border-b border-gray-200 dark:border-white/[0.06]">
                             <div className="px-2 py-1 rounded-md bg-white/[0.06] border border-white/10 text-[0.55rem] text-white font-medium flex items-center gap-1.5">
                               <div className="w-1 h-1 rounded-full bg-green-400 shrink-0" />
                               {activePersona.name}
@@ -207,7 +219,7 @@ export function ChatView() {
                     'flex items-center gap-1 px-2 py-0.5 rounded border transition-colors text-[0.55rem] ' +
                     (ragPanelOpen || ragEnabled
                       ? 'border-green-500/30 text-green-400'
-                      : 'border-white/[0.06] hover:border-white/15 text-gray-500')
+                      : 'border-gray-200 dark:border-white/[0.06] hover:border-gray-400 dark:hover:border-white/15 text-gray-500')
                   }
                   title="Document Chat (RAG)"
                 >
@@ -231,7 +243,7 @@ export function ChatView() {
                       ? 'border-green-500/30 text-green-400'
                       : activeModel && !isAgentCompatible(activeModel)
                         ? 'border-white/[0.04] text-gray-600 opacity-50'
-                        : 'border-white/[0.06] text-gray-500')
+                        : 'border-gray-200 dark:border-white/[0.06] text-gray-500')
                   }>
                     <Bot size={10} />
                     <div className="flex flex-col items-start leading-none">
@@ -249,6 +261,7 @@ export function ChatView() {
                 onRegenerate={regenerateMessage}
                 onEdit={editAndResend}
               />
+              <RealtimeCounter isRunning={isGenerating} />
               <ChatInput
                 onSend={sendMessage}
                 onStop={stopGeneration}
@@ -257,6 +270,7 @@ export function ChatView() {
                 onApprove={approveToolCall}
                 onReject={rejectToolCall}
               />
+            </>)}
             </div>
 
             {/* RAG Panel */}
