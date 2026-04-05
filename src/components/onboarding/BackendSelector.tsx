@@ -2,11 +2,10 @@
  * Backend Selection Dialog
  *
  * Shown on startup when multiple local backends are detected.
- * User picks one as the primary backend.
+ * User picks one as the primary backend. All backends treated equally.
  */
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { useProviderStore } from '../../stores/providerStore'
 import { PROVIDER_PRESETS } from '../../api/providers/types'
@@ -26,14 +25,12 @@ export function BackendSelector({ open, backends, onClose }: Props) {
     const backend = backends.find(b => b.id === selected)
     if (!backend) { onClose(); return }
 
-    // Find the preset to get the providerId
     const preset = PROVIDER_PRESETS.find(p => p.id === backend.id)
     if (!preset) { onClose(); return }
 
     if (preset.providerId === 'ollama') {
-      // Ollama is already enabled by default, nothing to do
+      // Ollama uses its own provider, already enabled by default
     } else {
-      // Enable as local backend via the openai provider
       setProviderConfig('openai', {
         enabled: true,
         name: backend.name,
@@ -45,34 +42,20 @@ export function BackendSelector({ open, backends, onClose }: Props) {
     onClose()
   }
 
-  // Filter out Ollama from the list (it's always on)
-  const nonOllamaBackends = backends.filter(b => b.id !== 'ollama')
-  const ollamaDetected = backends.some(b => b.id === 'ollama')
-
   return (
     <Modal open={open} onClose={onClose} title="">
       <div className="space-y-4">
-        <h3 className="text-base font-semibold text-white text-center">Local backends detected</h3>
+        <h3 className="text-base font-semibold text-white text-center">
+          {backends.length} local backend{backends.length > 1 ? 's' : ''} detected
+        </h3>
         <p className="text-[0.75rem] text-gray-400 text-center leading-relaxed">
           {backends.length === 1
             ? `${backends[0].name} is running on your system.`
-            : `${backends.length} local backends are running on your system. Select which one to use as your primary backend.`
-          }
+            : 'Multiple backends running. Select your primary backend. You can add more in Settings.'}
         </p>
 
-        {/* Backend list */}
         <div className="space-y-1">
-          {ollamaDetected && (
-            <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-green-500/[0.05] border border-green-500/15">
-              <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-              <div className="flex-1">
-                <p className="text-[0.7rem] font-medium text-white">Ollama</p>
-                <p className="text-[0.55rem] text-gray-500 font-mono">localhost:11434 — always active</p>
-              </div>
-            </div>
-          )}
-
-          {nonOllamaBackends.map(backend => (
+          {backends.map(backend => (
             <button
               key={backend.id}
               onClick={() => setSelected(backend.id)}
@@ -83,7 +66,7 @@ export function BackendSelector({ open, backends, onClose }: Props) {
               }`}
             >
               <div className={`w-2 h-2 rounded-full shrink-0 ${
-                selected === backend.id ? 'bg-white' : 'bg-gray-600'
+                selected === backend.id ? 'bg-green-500' : 'bg-gray-600'
               }`} />
               <div className="flex-1">
                 <p className="text-[0.7rem] font-medium text-white">{backend.name}</p>
@@ -93,7 +76,6 @@ export function BackendSelector({ open, backends, onClose }: Props) {
           ))}
         </div>
 
-        {/* Actions */}
         <div className="flex items-center justify-center gap-3 pt-1">
           <button
             onClick={onClose}
@@ -101,14 +83,12 @@ export function BackendSelector({ open, backends, onClose }: Props) {
           >
             Skip
           </button>
-          {nonOllamaBackends.length > 0 && (
-            <button
-              onClick={handleConfirm}
-              className="px-4 py-1.5 rounded-lg text-[0.7rem] font-medium bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 transition-colors"
-            >
-              Use selected
-            </button>
-          )}
+          <button
+            onClick={handleConfirm}
+            className="px-4 py-1.5 rounded-lg text-[0.7rem] font-medium bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 transition-colors"
+          >
+            Use selected
+          </button>
         </div>
       </div>
     </Modal>

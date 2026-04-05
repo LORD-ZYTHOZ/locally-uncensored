@@ -42,19 +42,17 @@ export function AppShell() {
     detectLocalBackends().then((backends) => {
       if (backends.length === 0) return
 
-      // If only Ollama detected, nothing to do (already default)
-      const nonOllama = backends.filter(b => b.id !== 'ollama')
-      if (nonOllama.length === 0) return
-
-      // If exactly 1 non-Ollama backend, auto-enable it
-      if (nonOllama.length === 1) {
-        const backend = nonOllama[0]
-        useProviderStore.getState().setProviderConfig('openai', {
-          enabled: true,
-          name: backend.name,
-          baseUrl: backend.baseUrl,
-          isLocal: true,
-        })
+      // Only 1 backend (any) → auto-enable it silently
+      if (backends.length === 1) {
+        const backend = backends[0]
+        if (backend.id !== 'ollama') {
+          useProviderStore.getState().setProviderConfig('openai', {
+            enabled: true,
+            name: backend.name,
+            baseUrl: backend.baseUrl,
+            isLocal: true,
+          })
+        }
         return
       }
 

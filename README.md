@@ -4,9 +4,9 @@
 
 # Locally Uncensored
 
-**Chat + Coding Agent + Images + Video — all local, all in one.**
+**Plug & Play Local AI — Chat, Code, Images, Video. All in one.**
 
-No cloud. No censorship. No data collection. Your AI, your rules.
+No cloud. No censorship. No data collection. Auto-detects 12 local backends. Your AI, your rules.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/PurpleDoubleD/locally-uncensored?style=social)](https://github.com/PurpleDoubleD/locally-uncensored/stargazers)
@@ -34,15 +34,17 @@ No cloud. No censorship. No data collection. Your AI, your rules.
 
 ---
 
-## v2.2.2 — Latest Release
+## v2.2.3 — Latest Release
 
-**Codex Coding Agent, MCP Tools, Permissions, File Upload, Thinking Mode**
+**Plug & Play Setup, Multi-Provider Overhaul, Codex Agent, MCP Tools**
 
+- **Plug & Play Setup** — First-launch wizard auto-detects 12 local backends (Ollama, LM Studio, vLLM, KoboldCpp, Jan, GPT4All, llama.cpp, LocalAI, text-generation-webui, TabbyAPI, Aphrodite, SGLang). Nothing installed? One-click install links. Re-Scan after install. Zero config.
+- **25+ Provider Presets** — Every local and cloud backend pre-configured. Just pick and go.
 - **Codex Coding Agent** — Three-tab system (LU | Codex | OpenClaw). Dedicated coding mode with file tree, native folder picker, shell execution, up to 20 iterations per task.
 - **13 MCP Tools** — Dynamic tool registry: web_search, web_fetch, file_read, file_write, file_list, file_search, shell_execute, code_execute, system_info, process_list, screenshot, image_generate, run_workflow.
 - **Granular Permissions** — 7 categories (web, filesystem, terminal, system, desktop, image, workflow) with blocked/confirm/auto levels. Per-conversation overrides.
-- **File Upload + Vision** — Drag & drop, Ctrl+V paste, clip button. Up to 5 images per message. Works across all providers (Ollama, OpenAI, Anthropic).
-- **Thinking Mode** — Provider-agnostic. Ollama native `think:true`, cloud via system prompt. Collapsible thinking blocks.
+- **File Upload + Vision** — Drag & drop, Ctrl+V paste, clip button. Up to 5 images per message. Works across all providers.
+- **Thinking Mode** — Provider-agnostic. Native support where available, system prompt fallback for others. Collapsible thinking blocks.
 - **Model Load/Unload** — Power icons in header to load/unload models from VRAM.
 - **Smart Tool Selection** — Keyword-based filtering saves ~80% of tool-definition tokens.
 - **JSON Repair** — Fixes broken JSON from local LLMs (trailing commas, single quotes, missing braces).
@@ -60,7 +62,8 @@ See [Release Notes](https://github.com/PurpleDoubleD/locally-uncensored/releases
 | AI Chat | **Yes** | Yes | Yes | Yes |
 | **Coding Agent (Codex)** | **Yes** | No | No | No |
 | **13 MCP Agent Tools** | **Yes** | No | No | No |
-| **Multi-Provider** (Ollama + Cloud) | **Yes** | Yes | Yes | No |
+| **Plug & Play Setup** | **12 Backends** | No | Built-in | No |
+| **Multi-Provider** (25+ Presets) | **Yes** | Yes | Yes | No |
 | **A/B Model Compare** | **Yes** | No | No | No |
 | **Local Benchmark** | **Yes** | No | No | No |
 | Image Generation | **Yes** | No | No | No |
@@ -81,8 +84,9 @@ See [Release Notes](https://github.com/PurpleDoubleD/locally-uncensored/releases
 ## Features
 
 ### Core
+- **Plug & Play Setup** — First-launch wizard auto-detects 12 local backends. Nothing installed? One-click install links for every backend. Re-Scan after install. Zero config needed.
 - **Uncensored AI Chat** — Abliterated models with zero restrictions. Streaming + thinking display.
-- **Multi-Provider** — Ollama (local), OpenAI-compatible (OpenRouter, Groq, vLLM), Anthropic (Claude). Switch per conversation.
+- **Multi-Provider** — 25+ presets. Local: Ollama, LM Studio, vLLM, KoboldCpp, llama.cpp, LocalAI, Jan, TabbyAPI, GPT4All, Aphrodite, SGLang, TGI. Cloud: OpenAI, Anthropic, OpenRouter, Groq, Together, DeepSeek, Mistral. Switch per conversation.
 - **Codex Coding Agent** — Reads codebase, writes code, runs shell commands. File tree with native folder picker. Up to 20 tool iterations.
 - **Agent Mode** — 13 MCP tools: web search, file I/O, shell, code execution, screenshots, system info. Native + Hermes XML fallback.
 - **Image Generation** — FLUX.1, Juggernaut XL, Pony Diffusion via ComfyUI. Full parameter control, no content filter.
@@ -116,7 +120,7 @@ See [Release Notes](https://github.com/PurpleDoubleD/locally-uncensored/releases
 - **Desktop**: Tauri v2 (Rust backend, standalone .exe)
 - **Frontend**: React 19, TypeScript, Tailwind CSS 4, Framer Motion
 - **State**: Zustand with localStorage persistence
-- **AI Backend**: Ollama, OpenAI-compat, Anthropic, ComfyUI, faster-whisper
+- **AI Backend**: 25+ providers (Ollama, LM Studio, vLLM, KoboldCpp, llama.cpp, LocalAI, Jan, OpenAI, Anthropic, OpenRouter, Groq, and more), ComfyUI, faster-whisper
 - **Build**: Vite 8 (dev), Tauri CLI (production)
 
 ---
@@ -134,7 +138,7 @@ Download the installer from [Releases](https://github.com/PurpleDoubleD/locally-
 ### macOS
 Build from source (see below).
 
-> **Local AI:** Install [Ollama](https://ollama.com/) for local models. Or use cloud providers (OpenAI, Anthropic) — configure in Settings, no local setup needed.
+> **Plug & Play:** Just install and launch. The setup wizard auto-detects all 12 supported local backends ([Ollama](https://ollama.com/), [LM Studio](https://lmstudio.ai/), [vLLM](https://github.com/vllm-project/vllm), [KoboldCpp](https://github.com/LostRuins/koboldcpp), llama.cpp, LocalAI, Jan, GPT4All, text-generation-webui, TabbyAPI, Aphrodite, SGLang). Nothing installed yet? The wizard shows one-click install links for every backend.
 
 ---
 
@@ -167,7 +171,7 @@ Open the **Create** tab → click **"Install ComfyUI Automatically"**. One click
 
 ## Recommended Models
 
-### Text (Ollama)
+### Text (any local backend)
 
 | Model | VRAM | Best For |
 |-------|------|----------|
@@ -195,13 +199,14 @@ Open the **Create** tab → click **"Install ComfyUI Automatically"**. One click
 
 ## Roadmap
 
+- [x] **Plug & Play Setup** (auto-detect 12 local backends, one-click install links)
 - [x] Codex Coding Agent
 - [x] MCP Tool Registry (13 tools)
 - [x] Granular Permissions (7 categories)
 - [x] File Upload + Vision
 - [x] Thinking Mode (provider-agnostic)
 - [x] Model Load/Unload from header
-- [x] Multi-Provider (Ollama + OpenAI + Anthropic)
+- [x] Multi-Provider (25+ presets: Ollama, LM Studio, vLLM, KoboldCpp, OpenAI, Anthropic, and more)
 - [x] Agent Mode + Workflows
 - [x] Memory System
 - [x] A/B Compare + Local Benchmark
