@@ -134,7 +134,7 @@ Download the installer from [Releases](https://github.com/PurpleDoubleD/locally-
 ### macOS
 Build from source (see below).
 
-> **Prerequisite:** [Ollama](https://ollama.com/) must be installed for AI chat.
+> **Local AI:** Install [Ollama](https://ollama.com/) for local models. Or use cloud providers (OpenAI, Anthropic) — configure in Settings, no local setup needed.
 
 ---
 

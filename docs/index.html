@@ -24,7 +24,7 @@
 <meta name="theme-color" content="#0a0a0a">
 <link rel="icon" href="./favicon.png">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Locally Uncensored","applicationCategory":"DeveloperApplication","applicationSubCategory":"Artificial Intelligence","operatingSystem":"Windows, macOS, Linux","description":"All-in-one local AI desktop app for uncensored chat, coding agent, image generation, and video creation. 13 built-in tools, multi-provider support, granular permissions. Run Gemma 4, Qwen 3.5, FLUX, and Wan 2.1 models locally.","url":"https://locallyuncensored.com/","downloadUrl":"https://github.com/PurpleDoubleD/locally-uncensored/releases/download/v2.2.2/Locally.Uncensored_2.2.2_x64-setup.exe","softwareVersion":"2.2.2","license":"https://opensource.org/licenses/MIT","author":{"@type":"Person","name":"PurpleDoubleD","url":"https://github.com/PurpleDoubleD"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Uncensored AI Chat via Ollama","Codex Coding Agent with 13 MCP Tools","Multi-Provider (Ollama + OpenAI + Anthropic)","Image Generation via ComfyUI","Video Generation with Wan 2.1","Granular Permission System","File Upload with Vision Support","Thinking Mode","A/B Model Compare","100% Offline and Private"],"screenshot":"https://raw.githubusercontent.com/PurpleDoubleD/locally-uncensored/master/docs/social-preview.png","softwareRequirements":"Ollama","memoryRequirements":"8 GB RAM minimum","storageRequirements":"6 GB for default model"}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Locally Uncensored","applicationCategory":"DeveloperApplication","applicationSubCategory":"Artificial Intelligence","operatingSystem":"Windows, macOS, Linux","description":"All-in-one local AI desktop app for uncensored chat, coding agent, image generation, and video creation. 13 built-in tools, multi-provider support, granular permissions. Run Gemma 4, Qwen 3.5, FLUX, and Wan 2.1 models locally.","url":"https://locallyuncensored.com/","downloadUrl":"https://github.com/PurpleDoubleD/locally-uncensored/releases/download/v2.2.2/Locally.Uncensored_2.2.2_x64-setup.exe","softwareVersion":"2.2.2","license":"https://opensource.org/licenses/MIT","author":{"@type":"Person","name":"PurpleDoubleD","url":"https://github.com/PurpleDoubleD"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Uncensored AI Chat via Ollama","Codex Coding Agent with 13 MCP Tools","Multi-Provider (Ollama + OpenAI + Anthropic)","Image Generation via ComfyUI","Video Generation with Wan 2.1","Granular Permission System","File Upload with Vision Support","Thinking Mode","A/B Model Compare","100% Offline and Private"],"screenshot":"https://raw.githubusercontent.com/PurpleDoubleD/locally-uncensored/master/docs/social-preview.png","softwareRequirements":"Ollama (auto-installed) or OpenAI-compatible API","memoryRequirements":"8 GB RAM minimum","storageRequirements":"6 GB for default model"}
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Organization","name":"PurpleDoubleD","url":"https://github.com/PurpleDoubleD","sameAs":["https://github.com/PurpleDoubleD","https://reddit.com/user/GroundbreakingMall54"]}
@@ -230,7 +230,7 @@ html,body{overflow-x:hidden}
     <a href="https://github.com/PurpleDoubleD/locally-uncensored/releases/download/v2.2.2/Locally.Uncensored_2.2.2_x64-setup.exe" class="btn btn-primary" style="font-size:.9rem;padding:.6rem 1.5rem" download>Windows (.exe)</a>
     <a href="https://github.com/PurpleDoubleD/locally-uncensored/releases/tag/v2.2.2" class="btn" style="font-size:.9rem;padding:.6rem 1.5rem">All Downloads</a>
   </div>
-  <p style="color:var(--text-tertiary);font-size:.8rem">Requires <a href="https://ollama.com/" style="color:var(--text-secondary);border-bottom:1px solid var(--border)">Ollama</a> for AI chat. Linux & macOS: <a href="https://github.com/PurpleDoubleD/locally-uncensored#-build-from-source-all-platforms" style="color:var(--text-secondary);border-bottom:1px solid var(--border)">build from source</a>.</p>
+  <p style="color:var(--text-tertiary);font-size:.8rem">For local AI: install <a href="https://ollama.com/" style="color:var(--text-secondary);border-bottom:1px solid var(--border)">Ollama</a> first. Or skip it and use cloud providers (OpenAI, Anthropic) in Settings. Linux & macOS: <a href="https://github.com/PurpleDoubleD/locally-uncensored#-quick-start" style="color:var(--text-secondary);border-bottom:1px solid var(--border)">build from source</a>.</p>
 </section>
 
 <section class="features reveal" id="features">
@@ -331,34 +331,34 @@ html,body{overflow-x:hidden}
 
   <div class="agent-grid">
     <div class="agent-card">
-      <div class="agent-icon">&#x1F4BB;</div>
+      <div class="agent-icon" style="font-size:1.2rem;color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
       <h3>Codex Coding Agent</h3>
       <p>Three-tab system: LU | Codex | OpenClaw. Codex reads your codebase, writes files, runs shell commands. File tree with native folder picker.</p>
     </div>
     <div class="agent-card">
-      <div class="agent-icon">&#x1F527;</div>
+      <div class="agent-icon" style="font-size:1.2rem;color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
       <h3>13 MCP Tools</h3>
-      <p>Dynamic tool registry: web_search, web_fetch, file_read, file_write, file_list, file_search, shell_execute, code_execute, system_info, process_list, screenshot, image_generate, run_workflow.</p>
+      <p>Dynamic tool registry: web_search, file_read, file_write, shell_execute, code_execute, system_info, screenshot, and more. Native + Hermes fallback.</p>
     </div>
     <div class="agent-card">
-      <div class="agent-icon">&#x1F512;</div>
+      <div class="agent-icon" style="font-size:1.2rem;color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
       <h3>Granular Permissions</h3>
       <p>7 categories: web, filesystem, terminal, system, desktop, image, workflow. Per-conversation overrides. Block, confirm, or auto-approve.</p>
     </div>
     <div class="agent-card">
-      <div class="agent-icon">&#x1F4CE;</div>
+      <div class="agent-icon" style="font-size:1.2rem;color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg></div>
       <h3>File Upload + Vision</h3>
       <p>Attach images via clip button, drag & drop, or Ctrl+V paste. Vision models analyze images. Works across all providers.</p>
     </div>
     <div class="agent-card">
-      <div class="agent-icon">&#x1F9E0;</div>
+      <div class="agent-icon" style="font-size:1.2rem;color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg></div>
       <h3>Thinking Mode</h3>
       <p>Provider-agnostic. Ollama native think:true, cloud providers via system prompt. Collapsible thinking blocks in chat.</p>
     </div>
     <div class="agent-card">
-      <div class="agent-icon">&#x26A1;</div>
+      <div class="agent-icon" style="font-size:1.2rem;color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
       <h3>Smart Tool Selection</h3>
-      <p>Keyword-based filtering reduces tool definitions per request by ~80%. JSON repair fixes broken output from local LLMs. Retry logic.</p>
+      <p>Keyword-based filtering reduces tool tokens by ~80%. JSON repair fixes broken output from local LLMs. Retry logic.</p>
     </div>
   </div>
 </section>
@@ -404,18 +404,18 @@ html,body{overflow-x:hidden}
   <div class="steps">
     <div class="step">
       <div class="step-num">1</div>
-      <h3>Install Ollama</h3>
-      <p>Download <a href="https://ollama.com/" style="color:var(--accent)">Ollama</a> and pull a model. Or let the app recommend one on first launch.</p>
+      <h3>Download & Install</h3>
+      <p>Download the .exe above and install. For local AI, install <a href="https://ollama.com/" style="color:var(--accent)">Ollama</a>. Or add OpenAI/Anthropic API keys in Settings — no local setup needed.</p>
     </div>
     <div class="step">
       <div class="step-num">2</div>
-      <h3>Download & Run</h3>
-      <p>Download the .exe installer above. Install, launch. The app detects your models automatically.</p>
+      <h3>Pick a Model</h3>
+      <p>The app recommends models for your hardware. One-click install from the Model Manager. Or connect to any OpenAI-compatible API.</p>
     </div>
     <div class="step">
       <div class="step-num">3</div>
       <h3>Chat, Code, Create</h3>
-      <p>Start chatting. Switch to Codex for coding tasks. Open Create for images and video. Everything is local.</p>
+      <p>Start chatting. Switch to Codex for coding. Open Create for images and video. Add providers in Settings anytime.</p>
     </div>
   </div>
 </section>
