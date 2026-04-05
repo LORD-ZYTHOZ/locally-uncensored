@@ -73,6 +73,11 @@ export function CodexView() {
               <p className="text-[0.55rem] text-gray-400 dark:text-gray-600 mt-0.5 max-w-[300px]">
                 Send a coding instruction. Codex will read your codebase, write code, and run commands.
               </p>
+              {!thread?.workingDirectory && (
+                <p className="text-[0.55rem] text-amber-500/70 mt-2">
+                  Set a working directory in the file tree panel →
+                </p>
+              )}
             </div>
           ) : (
             <div className="py-1">

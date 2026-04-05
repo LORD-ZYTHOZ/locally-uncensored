@@ -49,6 +49,7 @@ fn main() {
             commands::system::system_info,
             commands::system::process_list,
             commands::system::screenshot,
+            commands::system::pick_folder,
             // Downloads
             commands::download::download_model,
             commands::download::download_progress,
@@ -75,6 +76,12 @@ fn main() {
             #[cfg(debug_assertions)]
             if let Some(window) = app.get_webview_window("main") {
                 window.open_devtools();
+            }
+
+            // Remove Windows DWM shadow/border (the 1mm border around the window)
+            #[cfg(target_os = "windows")]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_shadow(false);
             }
 
             // ─── System Tray ───

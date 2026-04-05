@@ -8,7 +8,21 @@ use std::os::windows::process::CommandExt;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[tauri::command]
-pub fn shell_execute(
+pub async fn shell_execute(
+    command: String,
+    args: Option<Vec<String>>,
+    cwd: Option<String>,
+    timeout: Option<u64>,
+    shell: Option<String>,
+) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        shell_execute_sync(command, args, cwd, timeout, shell)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+}
+
+fn shell_execute_sync(
     command: String,
     args: Option<Vec<String>>,
     cwd: Option<String>,
@@ -42,7 +56,7 @@ pub fn shell_execute(
         }
     }
 
-    // Working directory
+    // Working directory — validate it exists
     if let Some(ref dir) = cwd {
         let path = std::path::Path::new(dir);
         if path.is_dir() {

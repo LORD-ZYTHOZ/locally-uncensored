@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { FolderOpen, Folder, FileText, ArrowLeft, RefreshCw } from 'lucide-react'
 import { useCodexStore } from '../../stores/codexStore'
 import { toolRegistry } from '../../api/mcp'
+import { isTauri } from '../../api/backend'
 import type { FileTreeNode } from '../../types/codex'
 
 export function FileTree() {
@@ -10,7 +11,6 @@ export function FileTree() {
   const setFileTree = useCodexStore((s) => s.setFileTree)
   const setWorkingDirectory = useCodexStore((s) => s.setWorkingDirectory)
   const [loading, setLoading] = useState(false)
-  const folderInputRef = useRef<HTMLInputElement>(null)
 
   const loadDirectory = async (dir: string) => {
     if (!dir.trim()) return
@@ -36,13 +36,12 @@ export function FileTree() {
     }
   }
 
-  // Go to parent directory — always works as long as there's a path
+  // Go to parent directory
   const goBack = () => {
     if (!workingDirectory) return
     const normalized = workingDirectory.replace(/\\/g, '/')
     const parts = normalized.split('/').filter(Boolean)
     if (parts.length <= 1) {
-      // Already at root (e.g. "C:")
       loadDirectory(parts[0] + '/')
     } else {
       const parent = parts.slice(0, -1).join('/')
@@ -50,30 +49,24 @@ export function FileTree() {
     }
   }
 
-  // Native folder picker via hidden input with webkitdirectory
-  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-    // Extract directory path from the first file's webkitRelativePath
-    const relativePath = (files[0] as any).webkitRelativePath || ''
-    const folderName = relativePath.split('/')[0]
-    if (folderName) {
-      // We can't get the full absolute path from browser file input
-      // So we use the folder name and ask the user to confirm
-      // In Tauri mode this would use the native dialog
-      const fullPath = window.prompt(
-        `Selected folder: "${folderName}"\nEnter the full path to this folder:`,
-        workingDirectory ? workingDirectory.replace(/\\/g, '/').replace(/\/[^/]*$/, '/' + folderName) : folderName
-      )
-      if (fullPath) loadDirectory(fullPath)
+  // Native folder picker — Tauri uses Rust dialog, dev mode uses prompt fallback
+  const handlePickClick = async () => {
+    if (isTauri()) {
+      try {
+        const invoke = (await import('@tauri-apps/api/core')).invoke
+        const selected = await invoke<string | null>('pick_folder', {
+          defaultPath: workingDirectory || undefined,
+        })
+        if (selected) loadDirectory(selected)
+      } catch {
+        // Fallback if invoke fails
+        const dir = window.prompt('Enter folder path:', workingDirectory || 'C:\\Users')
+        if (dir) loadDirectory(dir)
+      }
+    } else {
+      const dir = window.prompt('Enter folder path:', workingDirectory || 'C:\\Users')
+      if (dir) loadDirectory(dir)
     }
-    e.target.value = ''
-  }
-
-  // Simpler approach: just let them type the path on click
-  const handlePickClick = () => {
-    const dir = window.prompt('Enter folder path:', workingDirectory || 'C:\\Users')
-    if (dir) loadDirectory(dir)
   }
 
   useEffect(() => {
@@ -84,7 +77,7 @@ export function FileTree() {
 
   return (
     <div className="h-full flex flex-col border-l border-gray-200 dark:border-white/[0.04] bg-gray-50 dark:bg-white/[0.01]">
-      {/* Directory picker — click to open prompt */}
+      {/* Directory picker — click to open native dialog */}
       <div className="p-1.5 border-b border-gray-200 dark:border-white/[0.04]">
         <button
           onClick={handlePickClick}

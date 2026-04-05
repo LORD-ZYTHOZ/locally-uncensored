@@ -191,6 +191,18 @@ export async function listRunningModels(): Promise<string[]> {
   }
 }
 
+export async function loadModel(name: string): Promise<void> {
+  const res = await localFetch(ollamaUrl("/generate"), {
+    method: "POST",
+    body: JSON.stringify({ model: name, prompt: "", stream: false, keep_alive: "10m" }),
+  })
+  if (!res.ok) {
+    console.warn(`[ollama] failed to load model "${name}":`, res.status)
+  }
+  // Consume response to ensure model is fully loaded
+  try { await res.json() } catch {}
+}
+
 export async function unloadModel(name: string): Promise<void> {
   const res = await localFetch(ollamaUrl("/generate"), {
     method: "POST",

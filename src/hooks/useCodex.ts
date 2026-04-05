@@ -192,12 +192,20 @@ export function useCodex() {
           const toolName = tc.function.name
           const toolArgs = { ...tc.function.arguments }
 
-          // Inject working directory for file/shell tools
+          // Inject working directory for file/shell tools (skip if workDir is just '.' or empty)
+          const hasValidWorkDir = workDir && workDir !== '.' && workDir.length > 2
           if (toolName === 'shell_execute' && !toolArgs.cwd) {
-            toolArgs.cwd = workDir
+            if (hasValidWorkDir) {
+              toolArgs.cwd = workDir
+            }
+            // Without a valid cwd, shell_execute will use default — add timeout guard
+            if (!toolArgs.timeout) toolArgs.timeout = 30000
           }
           if (toolName === 'code_execute' && !toolArgs.cwd) {
-            toolArgs.cwd = workDir
+            if (hasValidWorkDir) {
+              toolArgs.cwd = workDir
+            }
+            if (!toolArgs.timeout) toolArgs.timeout = 30000
           }
           // Resolve relative file paths against working directory
           if ((toolName === 'file_read' || toolName === 'file_write' || toolName === 'file_list' || toolName === 'file_search') && toolArgs.path) {
@@ -218,9 +226,20 @@ export function useCodex() {
             toolCall: agentToolCall, timestamp: Date.now(),
           })
 
-          // Execute
+          // Execute with timeout guard (60s max to prevent freeze)
           const startTime = Date.now()
-          const result = await toolRegistry.execute(toolName, toolArgs)
+          const toolTimeout = 60000
+          let result: string
+          try {
+            result = await Promise.race([
+              toolRegistry.execute(toolName, toolArgs),
+              new Promise<string>((_, reject) =>
+                setTimeout(() => reject(new Error('Tool execution timed out (60s)')), toolTimeout)
+              ),
+            ])
+          } catch (timeoutErr) {
+            result = `Error: ${(timeoutErr as Error).message}`
+          }
           const duration = Date.now() - startTime
           const isError = result.startsWith('Error:')
 

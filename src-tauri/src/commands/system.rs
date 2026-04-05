@@ -95,3 +95,13 @@ pub fn screenshot() -> Result<serde_json::Value, String> {
         Err("Screenshot not implemented for this platform yet".to_string())
     }
 }
+
+#[tauri::command]
+pub async fn pick_folder(default_path: Option<String>) -> Result<Option<String>, String> {
+    let mut dialog = rfd::AsyncFileDialog::new();
+    if let Some(ref p) = default_path {
+        dialog = dialog.set_directory(p);
+    }
+    let result = dialog.pick_folder().await;
+    Ok(result.map(|f| f.path().to_string_lossy().to_string()))
+}
