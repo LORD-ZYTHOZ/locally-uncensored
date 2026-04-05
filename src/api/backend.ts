@@ -30,13 +30,14 @@ async function getInvoke() {
  */
 export async function localFetch(
   url: string,
-  options?: { method?: string; body?: string; headers?: Record<string, string> }
+  options?: { method?: string; body?: string; headers?: Record<string, string>; signal?: AbortSignal }
 ): Promise<Response> {
   if (!isTauri()) {
     return fetch(url, {
       method: options?.method || "GET",
       headers: options?.headers,
       body: options?.body,
+      signal: options?.signal,
     });
   }
 

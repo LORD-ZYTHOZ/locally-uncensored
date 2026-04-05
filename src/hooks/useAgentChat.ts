@@ -350,6 +350,7 @@ export function useAgentChat() {
           const rawContent = await chatNonStreaming(
             modelToUse,
             agentMessages.map(m => ({ role: m.role, content: m.content })),
+            abort.signal,
           )
 
           if (hasToolCallTags(rawContent)) {
@@ -597,9 +598,11 @@ export function useAgentChat() {
   const stopAgent = useCallback(() => {
     runningRef.current = false
     abortRef.current?.abort()
+    abortRef.current = null
     approvalRef.current?.resolve(false)
     approvalRef.current = null
     setPendingApproval(null)
+    setIsAgentRunning(false)
   }, [])
 
   return {

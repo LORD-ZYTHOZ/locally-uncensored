@@ -20,13 +20,33 @@ export async function showModel(name: string) {
 export async function getModelContext(name: string): Promise<number> {
   try {
     const info = await showModel(name)
-    return (
-      info?.model_info?.["general.context_length"] ||
-      info?.parameters?.num_ctx ||
-      2048
-    )
+
+    // Try model_info fields (various architectures use different keys)
+    const modelInfo = info?.model_info || {}
+    const contextFromInfo =
+      modelInfo["general.context_length"] ||
+      // Architecture-specific keys (gemma2.context_length, llama.context_length, etc.)
+      Object.entries(modelInfo).find(([k]) => k.endsWith('.context_length'))?.[1]
+
+    if (contextFromInfo && Number(contextFromInfo) > 0) {
+      return Number(contextFromInfo)
+    }
+
+    // Try parameters (can be a string like "num_ctx 8192" or an object)
+    const params = info?.parameters
+    if (params) {
+      if (typeof params === 'object' && params.num_ctx) {
+        return Number(params.num_ctx)
+      }
+      if (typeof params === 'string') {
+        const match = params.match(/num_ctx\s+(\d+)/)
+        if (match) return Number(match[1])
+      }
+    }
+
+    return 4096
   } catch {
-    return 2048
+    return 4096
   }
 }
 

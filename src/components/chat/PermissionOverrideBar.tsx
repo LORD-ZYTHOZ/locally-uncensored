@@ -13,10 +13,10 @@ const CATEGORY_META: Record<ToolCategory, { icon: typeof Globe; short: string }>
   workflow: { icon: GitBranch, short: 'Flow' },
 }
 
-const LEVEL_COLORS: Record<PermissionLevel, string> = {
-  blocked: 'bg-red-500/10 border-red-500/30 text-red-400',
-  confirm: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
-  auto: 'bg-green-500/10 border-green-500/30 text-green-400',
+const ICON_COLORS: Record<PermissionLevel, string> = {
+  blocked: 'text-red-400',
+  confirm: 'text-amber-400',
+  auto: 'text-green-400',
 }
 
 const NEXT_LEVEL: Record<PermissionLevel, PermissionLevel> = {
@@ -48,10 +48,10 @@ export function PermissionOverrideBar() {
           <button
             key={cat}
             onClick={() => handleClick(cat)}
-            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[0.5rem] font-medium transition-all ${LEVEL_COLORS[level]}`}
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-white/[0.06] text-[0.5rem] font-medium text-gray-500 hover:border-white/15 transition-all"
             title={`${short}: ${level} — click to cycle`}
           >
-            <Icon size={9} />
+            <Icon size={9} className={ICON_COLORS[level]} />
             <span>{short}</span>
           </button>
         )

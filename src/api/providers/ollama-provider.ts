@@ -76,6 +76,7 @@ export class OllamaProvider implements ProviderClient {
     const res = await localFetchStream(this.apiUrl('/chat'), {
       method: 'POST',
       body: JSON.stringify(body),
+      signal: options?.signal,
     })
 
     if (!res.ok) {
@@ -126,11 +127,14 @@ export class OllamaProvider implements ProviderClient {
     if (options?.maxTokens) ollamaOptions.num_predict = options.maxTokens
     body.options = ollamaOptions
 
-    const res = await localFetch(this.apiUrl('/chat'), {
+    const fetchOptions: any = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    })
+    }
+    if (options?.signal) fetchOptions.signal = options.signal
+
+    const res = await localFetch(this.apiUrl('/chat'), fetchOptions)
 
     if (!res.ok) {
       throw new ProviderError(

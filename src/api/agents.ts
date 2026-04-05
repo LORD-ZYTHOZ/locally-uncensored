@@ -341,7 +341,8 @@ export async function executeTool(
 
 export async function chatNonStreaming(
   model: string,
-  messages: { role: string; content: string }[]
+  messages: { role: string; content: string }[],
+  signal?: AbortSignal
 ): Promise<string> {
   const res = await localFetch(ollamaUrl("/chat"), {
     method: "POST",
@@ -350,6 +351,7 @@ export async function chatNonStreaming(
       messages,
       stream: false,
     }),
+    signal,
   });
 
   if (!res.ok) {
