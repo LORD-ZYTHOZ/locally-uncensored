@@ -9,7 +9,7 @@ import {
   getHuggingFaceUncensoredModels, getHuggingFaceMainstreamModels,
   detectProviderModelPath, startModelDownloadToPath,
   startModelDownload, getDownloadProgress, searchCivitaiModels,
-  installBundleComplete,
+  installBundleComplete, checkBundlesInstalled,
   type DiscoverModel, type DownloadProgress, type ModelBundle, type CivitAIModelResult,
 } from '../../api/discover'
 import { getSystemVRAM } from '../../api/comfyui'
@@ -107,7 +107,7 @@ function VariantPullButton({ model, pullModel, isPullingModel, isInstalled }: {
   )
 }
 
-function ModelDiscoverCard({ model, index, isText, getModelDownloadState, pullModel, isPullingModel, isInstalled, handleDownload }: {
+function ModelDiscoverCard({ model, index, isText, getModelDownloadState, pullModel, isPullingModel, isInstalled, isModelFullyInstalled, handleDownload }: {
   model: DiscoverModel
   index: number
   isText: boolean
@@ -115,6 +115,7 @@ function ModelDiscoverCard({ model, index, isText, getModelDownloadState, pullMo
   pullModel: (name: string) => void
   isPullingModel: (name: string) => boolean
   isInstalled: (name: string) => boolean
+  isModelFullyInstalled: (model: DiscoverModel) => boolean
   handleDownload: (m: DiscoverModel) => void
 }) {
   const dlState = getModelDownloadState(model)
@@ -133,8 +134,8 @@ function ModelDiscoverCard({ model, index, isText, getModelDownloadState, pullMo
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-              {isInstalled(model.name) && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-green-500/15 text-green-500 font-bold border border-green-500/30 shrink-0">INSTALLED</span>}
-              {model.hot && !isInstalled(model.name) && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-500 font-bold border border-orange-500/30 shrink-0">HOT</span>}
+              {isModelFullyInstalled(model) && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-green-500/15 text-green-500 font-bold border border-green-500/30 shrink-0">INSTALLED</span>}
+              {model.hot && !isModelFullyInstalled(model) && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-500 font-bold border border-orange-500/30 shrink-0">HOT</span>}
               {model.agent && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-green-500/15 text-green-500 font-bold border border-green-500/30 shrink-0">AGENT</span>}
               <span>{model.description || model.name}</span>
             </h3>
@@ -256,6 +257,14 @@ export function DiscoverModels({ category }: Props) {
     getSystemVRAM().then(v => setSystemVRAM(v))
   }, [])
 
+  // Check which bundles are REALLY installed (file size validated, not just file existence)
+  const [bundleStatuses, setBundleStatuses] = useState<Record<string, boolean>>({})
+  useEffect(() => {
+    if (category !== 'image' && category !== 'video') return
+    const allBundles = [...getImageBundles(), ...getVideoBundles()]
+    checkBundlesInstalled(allBundles).then(statuses => setBundleStatuses(statuses))
+  }, [category])
+
   // Start polling on mount if there are active downloads
   useEffect(() => {
     dlStore.getState().refresh()
@@ -319,11 +328,22 @@ export function DiscoverModels({ category }: Props) {
   const isInstalled = (name: string) => {
     // Exact match (e.g., "hermes3:8b" === "hermes3:8b")
     if (installedModels.some((m) => m.name === name)) return true
-    // Prefix match for Ollama models without tag (e.g., "hermes3" matches "hermes3:8b" or "hermes3:latest")
-    if (!name.includes(':')) {
-      return installedModels.some((m) => m.name === name + ':latest' || m.name.startsWith(name + ':'))
+    // For names WITH a tag (e.g., "gemma4:31b") — only exact match, no prefix
+    if (name.includes(':')) return false
+    // For names WITHOUT a tag — only match ":latest" (default pull)
+    return installedModels.some((m) => m.name === name + ':latest')
+  }
+
+  // Card-level: is the model fully installed? (all variants or the single default)
+  const isModelFullyInstalled = (model: DiscoverModel) => {
+    const sizeTags = model.tags.filter(t => /^\d+B$/i.test(t) || /^[Qe]\d/i.test(t) || /^IQ\d/i.test(t) || /^[a-z]+$/i.test(t))
+    if (sizeTags.length <= 1) {
+      // Single variant: check if that specific one is installed
+      const fullName = sizeTags.length === 1 ? `${model.name}:${sizeTags[0].toLowerCase()}` : model.name
+      return isInstalled(fullName)
     }
-    return false
+    // Multi-variant: show INSTALLED only if ALL variants are installed
+    return sizeTags.every(tag => isInstalled(`${model.name}:${tag.toLowerCase()}`))
   }
 
   const handleDownload = async (model: DiscoverModel) => {
@@ -339,6 +359,7 @@ export function DiscoverModels({ category }: Props) {
   const handleBundleInstall = async (bundle: ModelBundle) => {
     if (installingBundle === bundle.name) return // Prevent duplicate installs
     setInstallingBundle(bundle.name)
+    setInstallError(null)
     const filenames: string[] = []
     for (const file of bundle.files) {
       if (file.downloadUrl && file.filename && file.subfolder) {
@@ -355,9 +376,20 @@ export function DiscoverModels({ category }: Props) {
       console.error('[DiscoverModels] Bundle install failed:', err)
       setInstallError(`${bundle.name}: ${err instanceof Error ? err.message : String(err)}`)
     }
-    // Keep installingBundle set until polling confirms downloads are active
-    // (small delay to let first poll complete)
-    setTimeout(() => setInstallingBundle(null), 1500)
+    // Wait for polling to pick up at least one active download before clearing spinner
+    // This prevents the "disappearing" UI — spinner stays until downloads are visible
+    const waitForDownloads = () => {
+      const active = filenames.some(fn => {
+        const dl = dlStore.getState().downloads[fn]
+        return dl && (dl.status === 'downloading' || dl.status === 'connecting' || dl.status === 'complete')
+      })
+      if (active) {
+        setInstallingBundle(null)
+      } else {
+        setTimeout(waitForDownloads, 500)
+      }
+    }
+    setTimeout(waitForDownloads, 1000)
   }
 
   const handleCivitaiSearch = async () => {
@@ -376,7 +408,11 @@ export function DiscoverModels({ category }: Props) {
   }
 
   const isBundleComplete = (bundle: ModelBundle): boolean => {
-    return bundle.files.every(f => f.filename && downloads[f.filename]?.status === 'complete')
+    // Check 1: Download store says all files complete (current session downloads)
+    const dlComplete = bundle.files.every(f => f.filename && downloads[f.filename]?.status === 'complete')
+    if (dlComplete) return true
+    // Check 2: Disk check says all files are complete (size validated)
+    return bundleStatuses[bundle.name] === true
   }
 
   const isBundleDownloading = (bundle: ModelBundle): boolean => {
@@ -753,7 +789,7 @@ export function DiscoverModels({ category }: Props) {
           {subTab === 'uncensored' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredUncensored.map((model, i) => (
-                <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPullingModel={isPullingModel} isInstalled={isInstalled} handleDownload={handleModelDownload} />
+                <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPullingModel={isPullingModel} isInstalled={isInstalled} isModelFullyInstalled={isModelFullyInstalled} handleDownload={handleModelDownload} />
               ))}
               {filteredUncensored.length === 0 && (
                 <p className="text-center text-gray-500 py-4 col-span-2">No uncensored models match your search</p>
@@ -763,7 +799,7 @@ export function DiscoverModels({ category }: Props) {
           {subTab === 'mainstream' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredMainstream.map((model, i) => (
-                <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPullingModel={isPullingModel} isInstalled={isInstalled} handleDownload={handleModelDownload} />
+                <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPullingModel={isPullingModel} isInstalled={isInstalled} isModelFullyInstalled={isModelFullyInstalled} handleDownload={handleModelDownload} />
               ))}
               {filteredMainstream.length === 0 && (
                 <p className="text-center text-gray-500 py-4 col-span-2">No mainstream models match your search</p>
@@ -777,7 +813,7 @@ export function DiscoverModels({ category }: Props) {
               <h3 className="text-[0.7rem] font-semibold text-gray-500 uppercase tracking-wider">Search Results</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {filtered.filter(m => !uncensoredModels.some(u => u.name === m.name) && !mainstreamModels.some(u => u.name === m.name)).map((model, i) => (
-                  <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPullingModel={isPullingModel} isInstalled={isInstalled} handleDownload={handleModelDownload} />
+                  <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPullingModel={isPullingModel} isInstalled={isInstalled} isModelFullyInstalled={isModelFullyInstalled} handleDownload={handleModelDownload} />
                 ))}
               </div>
             </div>
@@ -789,7 +825,7 @@ export function DiscoverModels({ category }: Props) {
               <h3 className="text-[0.7rem] font-semibold text-gray-500 uppercase tracking-wider">HuggingFace Search Results</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {hfSearchResults.map((model, i) => (
-                  <ModelDiscoverCard key={model.name + i} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPullingModel={isPullingModel} isInstalled={isInstalled} handleDownload={handleModelDownload} />
+                  <ModelDiscoverCard key={model.name + i} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPullingModel={isPullingModel} isInstalled={isInstalled} isModelFullyInstalled={isModelFullyInstalled} handleDownload={handleModelDownload} />
                 ))}
               </div>
             </div>
@@ -798,7 +834,7 @@ export function DiscoverModels({ category }: Props) {
       ) : !isVideo ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filtered.map((model, i) => (
-            <ModelDiscoverCard key={model.name} model={model} index={i} isText={false} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPullingModel={isPullingModel} isInstalled={isInstalled} handleDownload={handleDownload} />
+            <ModelDiscoverCard key={model.name} model={model} index={i} isText={false} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPullingModel={isPullingModel} isInstalled={isInstalled} isModelFullyInstalled={isModelFullyInstalled} handleDownload={handleDownload} />
           ))}
         </div>
       ) : null}

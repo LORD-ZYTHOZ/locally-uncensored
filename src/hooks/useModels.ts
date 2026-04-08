@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { listModels, pullModel as pullModelApi, pullModelTauri, deleteModel as deleteModelApi } from '../api/ollama'
 import { isTauri } from '../api/backend'
-import { getCheckpoints as getComfyCheckpoints, getDiffusionModels as getComfyDiffusionModels, checkComfyConnection } from '../api/comfyui'
+import { getCheckpoints as getComfyCheckpoints, getDiffusionModels as getComfyDiffusionModels, checkComfyConnection, filterPartialFiles } from '../api/comfyui'
 import { parseNDJSONStream } from '../api/stream'
 import { useModelStore } from '../stores/modelStore'
 import { useProviderStore } from '../stores/providerStore'
@@ -64,11 +64,14 @@ export function useModels() {
       if (comfyOk) {
         try {
           const [checkpoints, diffusionModels] = await Promise.all([getComfyCheckpoints(), getComfyDiffusionModels()])
+          const allNames = [...checkpoints, ...diffusionModels]
+          const complete = await filterPartialFiles(allNames)
+
           const classifyComfyModel = (name: string): AIModel => {
             if (isVideoModel(name)) return { name, model: name, size: 0, format: 'safetensors', architecture: 'unknown', type: 'video', providerName: 'ComfyUI' } as VideoModel
             return { name, model: name, size: 0, format: 'safetensors', architecture: 'unknown', type: 'image', providerName: 'ComfyUI' } as ImageModel
           }
-          comfyModels = [...checkpoints.map(classifyComfyModel), ...diffusionModels.map(classifyComfyModel)]
+          comfyModels = allNames.filter(name => complete.has(name)).map(classifyComfyModel)
         } catch { /* continue */ }
       }
       setModels([...allModels, ...comfyModels])

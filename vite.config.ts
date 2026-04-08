@@ -484,6 +484,46 @@ function comfyLauncher(): Plugin {
         })
       })
 
+      // API: Check model file sizes (for partial download detection)
+      server.middlewares.use('/local-api/check-model-sizes', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { files } = JSON.parse(body)
+            const { existsSync, statSync } = require('fs')
+            const { join } = require('path')
+            const home = require('os').homedir()
+            // Try to find ComfyUI path
+            const candidates = [
+              join(home, 'ComfyUI'),
+              join(home, 'Desktop', 'ComfyUI'),
+              'C:\\ComfyUI',
+            ]
+            const comfyPath = candidates.find(p => existsSync(p)) || join(home, 'ComfyUI')
+            const results = (files as any[]).map((f: any) => {
+              const subfolder = f.subfolder || ''
+              const dir = subfolder.startsWith('custom_nodes')
+                ? join(comfyPath, subfolder)
+                : join(comfyPath, 'models', subfolder)
+              const filePath = join(dir, f.filename)
+              if (existsSync(filePath)) {
+                const actual = statSync(filePath).size
+                const threshold = f.expectedBytes > 0 ? f.expectedBytes * 0.9 : 0
+                return { filename: f.filename, exists: true, actualBytes: actual, complete: f.expectedBytes === 0 || actual >= threshold }
+              }
+              return { filename: f.filename, exists: false, actualBytes: 0, complete: false }
+            })
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify(results))
+          } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+      })
+
       // API: Download model to a specific path (for HuggingFace GGUF → LM Studio etc.)
       server.middlewares.use('/local-api/download-model-to-path', (req, res) => {
         if (req.method !== 'POST') { res.writeHead(405); res.end(); return }

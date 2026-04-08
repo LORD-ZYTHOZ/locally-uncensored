@@ -9,7 +9,6 @@ import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
 import { RAGPanel } from './RAGPanel'
 import { AgentModeToggle } from './AgentModeToggle'
-import { ModelRecommendation } from '../models/ModelRecommendation'
 import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { FEATURE_FLAGS } from '../../lib/constants'
@@ -75,7 +74,6 @@ export function ChatView() {
             <h1 className="text-[0.95rem] font-semibold text-gray-400 mb-0.5 tracking-wide">LUncensored</h1>
             <p className="text-[0.72rem] text-gray-600">No filters, no limits.</p>
 
-            {models.length === 0 && <div className="mt-4"><ModelRecommendation /></div>}
             {models.length > 0 && !activeModel && (
               <p className="text-[0.6rem] text-amber-500/60 mt-3">Select a model above.</p>
             )}

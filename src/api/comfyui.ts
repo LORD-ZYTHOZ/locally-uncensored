@@ -104,6 +104,12 @@ export function isVideoModelType(type: ModelType): boolean {
     || type === 'cogvideo' || type === 'svd' || type === 'framepack' || type === 'pyramidflow' || type === 'allegro'
 }
 
+/** Check if a model filename is an Image-to-Video model (needs input image) */
+export function isI2VModel(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.includes('i2v') || lower.includes('svd') || lower.includes('framepack')
+}
+
 // ─── Default generation parameters per model type ───
 
 export interface ModelTypeDefaults {
@@ -335,18 +341,71 @@ export async function getAnimateDiffModels(): Promise<string[]> {
   }
 }
 
+// ─── Partial Download Filter ───
+// Filters out files that exist on disk but are incomplete (< 90% of expected size).
+// Uses known bundle file sizes from discover.ts. Unknown files pass through.
+
+let _knownFileSizes: Map<string, { subfolder: string; expectedBytes: number }> | null = null
+
+function getKnownFileSizes(): Map<string, { subfolder: string; expectedBytes: number }> {
+  if (_knownFileSizes) return _knownFileSizes
+  // Lazy import to avoid circular deps
+  const { getImageBundles, getVideoBundles } = require('../api/discover')
+  _knownFileSizes = new Map()
+  for (const bundle of [...getImageBundles(), ...getVideoBundles()]) {
+    for (const f of (bundle as any).files) {
+      if (f.filename && f.sizeGB && f.subfolder) {
+        _knownFileSizes.set(f.filename, {
+          subfolder: f.subfolder,
+          expectedBytes: Math.round(f.sizeGB * 1_073_741_824),
+        })
+      }
+    }
+  }
+  return _knownFileSizes
+}
+
+/** Filter out partially downloaded files. Returns only filenames that are complete. */
+export async function filterPartialFiles(filenames: string[]): Promise<Set<string>> {
+  const known = getKnownFileSizes()
+  const filesToCheck = filenames
+    .filter(name => known.has(name))
+    .map(name => {
+      const info = known.get(name)!
+      return { subfolder: info.subfolder, filename: name, expectedBytes: info.expectedBytes }
+    })
+
+  if (filesToCheck.length === 0) return new Set(filenames) // nothing to check → all pass
+
+  try {
+    const { backendCall } = await import('./backend')
+    const results: Array<{ filename: string; complete: boolean }> =
+      await backendCall('check_model_sizes', { files: filesToCheck })
+    const incomplete = new Set(results.filter(r => !r.complete).map(r => r.filename))
+    if (incomplete.size > 0) {
+      console.log(`[ComfyUI] Filtered ${incomplete.size} partial downloads:`, [...incomplete])
+    }
+    return new Set(filenames.filter(name => !incomplete.has(name)))
+  } catch {
+    return new Set(filenames) // if check fails, show all (backward compat)
+  }
+}
+
 // ─── Classified Model Lists ───
 
 export async function getImageModels(): Promise<ClassifiedModel[]> {
   const [checkpoints, diffModels] = await Promise.all([getCheckpoints(), getDiffusionModels()])
+  const complete = await filterPartialFiles([...checkpoints, ...diffModels])
   const result: ClassifiedModel[] = []
 
   for (const name of checkpoints) {
+    if (!complete.has(name)) continue
     const type = classifyModel(name)
     result.push({ name, type: isImageModelType(type) ? type : 'sdxl', source: 'checkpoint' })
   }
 
   for (const name of diffModels) {
+    if (!complete.has(name)) continue
     const type = classifyModel(name)
     if (isImageModelType(type)) {
       result.push({ name, type, source: 'diffusion_model' })
@@ -358,9 +417,11 @@ export async function getImageModels(): Promise<ClassifiedModel[]> {
 
 export async function getVideoModels(): Promise<ClassifiedModel[]> {
   const diffModels = await getDiffusionModels()
+  const complete = await filterPartialFiles(diffModels)
   const result: ClassifiedModel[] = []
 
   for (const name of diffModels) {
+    if (!complete.has(name)) continue
     const type = classifyModel(name)
     if (isVideoModelType(type)) {
       result.push({ name, type, source: 'diffusion_model' })

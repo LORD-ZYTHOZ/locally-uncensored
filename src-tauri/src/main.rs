@@ -59,6 +59,7 @@ fn main() {
             commands::download::cancel_download,
             commands::download::resume_download,
             commands::download::detect_model_path,
+            commands::download::check_model_sizes,
             // Web search
             commands::search::web_search,
             commands::search::search_status,

@@ -60,6 +60,61 @@ export async function resumeDownload(id: string, url: string, subfolder: string)
 
 // ─── Custom Node Installation ───
 
+/** Check if ALL files in a bundle are completely downloaded (size validated) */
+export async function checkBundleInstalled(bundle: ModelBundle): Promise<boolean> {
+  try {
+    const files = bundle.files
+      .filter(f => f.subfolder && f.filename)
+      .map(f => ({
+        subfolder: f.subfolder!,
+        filename: f.filename!,
+        expectedBytes: f.sizeGB ? Math.round(f.sizeGB * 1_073_741_824) : 0,
+      }))
+    if (files.length === 0) return false
+    const results: Array<{ filename: string; exists: boolean; actualBytes: number; complete: boolean }> =
+      await backendCall('check_model_sizes', { files })
+    return results.every(r => r.complete)
+  } catch {
+    return false
+  }
+}
+
+/** Check multiple bundles at once, returns map of bundle name → installed status */
+export async function checkBundlesInstalled(bundles: ModelBundle[]): Promise<Record<string, boolean>> {
+  const result: Record<string, boolean> = {}
+  // Collect ALL files from ALL bundles into a single batch request
+  const allFiles: Array<{ subfolder: string; filename: string; expectedBytes: number; bundleName: string }> = []
+  for (const bundle of bundles) {
+    for (const f of bundle.files) {
+      if (!f.subfolder || !f.filename) continue
+      allFiles.push({
+        subfolder: f.subfolder,
+        filename: f.filename,
+        expectedBytes: f.sizeGB ? Math.round(f.sizeGB * 1_073_741_824) : 0,
+        bundleName: bundle.name,
+      })
+    }
+  }
+  if (allFiles.length === 0) return result
+
+  try {
+    const checkFiles = allFiles.map(f => ({ subfolder: f.subfolder, filename: f.filename, expectedBytes: f.expectedBytes }))
+    const results: Array<{ filename: string; exists: boolean; actualBytes: number; complete: boolean }> =
+      await backendCall('check_model_sizes', { files: checkFiles })
+
+    // Map results back to bundles
+    const fileStatus = new Map(results.map(r => [r.filename, r.complete]))
+    for (const bundle of bundles) {
+      const bundleFiles = bundle.files.filter(f => f.filename)
+      result[bundle.name] = bundleFiles.length > 0 && bundleFiles.every(f => fileStatus.get(f.filename!) === true)
+    }
+  } catch {
+    // If check fails (e.g. no ComfyUI), all bundles are not installed
+    for (const b of bundles) result[b.name] = false
+  }
+  return result
+}
+
 export async function installCustomNodes(nodeKeys: string[]): Promise<void> {
   for (const key of nodeKeys) {
     const entry = CUSTOM_NODE_REGISTRY[key]
@@ -80,23 +135,7 @@ export async function installCustomNodes(nodeKeys: string[]): Promise<void> {
 export async function installBundleComplete(bundle: ModelBundle): Promise<void> {
   const errors: string[] = []
 
-  // Step 1: Install custom nodes if needed (non-blocking — don't prevent downloads)
-  if (bundle.customNodes && bundle.customNodes.length > 0) {
-    for (const key of bundle.customNodes) {
-      try {
-        const entry = CUSTOM_NODE_REGISTRY[key]
-        if (!entry) continue
-        await backendCall('install_custom_node', { repoUrl: entry.repo, nodeName: entry.name })
-        console.log(`[discover] Installed custom node: ${entry.name}`)
-      } catch (err) {
-        console.warn('[discover] Custom node install failed (continuing with downloads):', err)
-        errors.push(`Custom node ${key}: ${err}`)
-      }
-    }
-  }
-
-  // Step 2: Download all model files — each file independently (don't let one failure stop others)
-  let startedDownloads = 0
+  // Step 1: Start ALL downloads IMMEDIATELY (don't wait for custom nodes)
   for (const file of bundle.files) {
     if (!file.downloadUrl || !file.filename || !file.subfolder) continue
     try {
@@ -105,8 +144,6 @@ export async function installBundleComplete(bundle: ModelBundle): Promise<void> 
       if (result.status === 'exists') {
         // File already on disk — emit synthetic 'complete' so UI reflects it
         window.dispatchEvent(new CustomEvent('comfyui-download-exists', { detail: { filename: file.filename } }))
-      } else {
-        startedDownloads++
       }
     } catch (err) {
       console.error(`[discover] Download failed for ${file.filename}:`, err)
@@ -114,15 +151,31 @@ export async function installBundleComplete(bundle: ModelBundle): Promise<void> 
     }
   }
 
-  // Step 3: Restart ComfyUI if custom nodes were installed (needed for node registration)
+  // Step 2: Install custom nodes in BACKGROUND (fire-and-forget, non-blocking)
+  // This runs git clone + pip install which can take minutes — never block downloads
   if (bundle.customNodes && bundle.customNodes.length > 0) {
-    try {
-      await backendCall('stop_comfyui')
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      await backendCall('start_comfyui')
-    } catch (err) {
-      console.warn('[discover] ComfyUI restart after custom node install failed:', err)
-    }
+    const nodeKeys = [...bundle.customNodes]
+    void (async () => {
+      for (const key of nodeKeys) {
+        try {
+          const entry = CUSTOM_NODE_REGISTRY[key]
+          if (!entry) continue
+          await backendCall('install_custom_node', { repoUrl: entry.repo, nodeName: entry.name })
+          console.log(`[discover] Installed custom node: ${entry.name}`)
+        } catch (err) {
+          console.warn('[discover] Custom node install failed:', err)
+        }
+      }
+      // Restart ComfyUI after custom nodes are done (needed for node registration)
+      try {
+        await backendCall('stop_comfyui')
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        await backendCall('start_comfyui')
+        console.log('[discover] ComfyUI restarted after custom node install')
+      } catch (err) {
+        console.warn('[discover] ComfyUI restart after custom node install failed:', err)
+      }
+    })()
   }
 
   if (errors.length > 0) {

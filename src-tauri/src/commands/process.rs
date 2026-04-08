@@ -220,7 +220,7 @@ pub fn start_comfyui(state: State<'_, AppState>) -> Result<serde_json::Value, St
     println!("[ComfyUI] Starting from: {}", comfy_path);
 
     let mut cmd = Command::new(python);
-    cmd.args(["main.py", "--listen", "127.0.0.1", "--port", "8188"])
+    cmd.args(["main.py", "--listen", "127.0.0.1", "--port", "8188", "--enable-cors-header", "*"])
         .current_dir(&comfy_path)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -410,7 +410,7 @@ pub fn auto_start_comfyui(state: &AppState) {
             *state.comfy_path.lock().unwrap() = Some(path.clone());
 
             let mut cmd = Command::new(&state.python_bin);
-            cmd.args(["main.py", "--listen", "127.0.0.1", "--port", "8188"])
+            cmd.args(["main.py", "--listen", "127.0.0.1", "--port", "8188", "--enable-cors-header", "*"])
                 .current_dir(&path)
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())

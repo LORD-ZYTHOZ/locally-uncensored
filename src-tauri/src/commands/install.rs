@@ -2,9 +2,16 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 use tauri::State;
 
 use crate::state::AppState;
+
+/// Windows: hide console windows for spawned processes
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[tauri::command]
 pub fn install_comfyui(
@@ -30,12 +37,14 @@ pub fn install_comfyui(
     std::thread::spawn(move || {
         // Step 1: Git clone
         println!("[Install] Cloning ComfyUI to {:?}", target_dir);
-        let clone = Command::new("git")
-            .args(["clone", "https://github.com/comfyanonymous/ComfyUI.git"])
+        let mut cmd = Command::new("git");
+        cmd.args(["clone", "https://github.com/comfyanonymous/ComfyUI.git"])
             .arg(&target_dir)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output();
+            .stderr(Stdio::piped());
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let clone = cmd.output();
 
         match clone {
             Ok(output) if output.status.success() => {
@@ -46,10 +55,12 @@ pub fn install_comfyui(
                 // Directory might already exist
                 if stderr.contains("already exists") {
                     println!("[Install] ComfyUI directory already exists, updating...");
-                    let _ = Command::new("git")
-                        .args(["pull"])
-                        .current_dir(&target_dir)
-                        .output();
+                    let mut pull = Command::new("git");
+                    pull.args(["pull"]).current_dir(&target_dir)
+                        .stdout(Stdio::piped()).stderr(Stdio::piped());
+                    #[cfg(target_os = "windows")]
+                    pull.creation_flags(CREATE_NO_WINDOW);
+                    let _ = pull.output();
                 } else {
                     println!("[Install] Git clone failed: {}", stderr);
                     return;
@@ -62,10 +73,11 @@ pub fn install_comfyui(
         }
 
         // Step 2: Detect GPU and install PyTorch
-        let has_nvidia = Command::new("nvidia-smi")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false);
+        let mut nv = Command::new("nvidia-smi");
+        nv.stdout(Stdio::piped()).stderr(Stdio::piped());
+        #[cfg(target_os = "windows")]
+        nv.creation_flags(CREATE_NO_WINDOW);
+        let has_nvidia = nv.output().map(|o| o.status.success()).unwrap_or(false);
 
         println!("[Install] GPU detected: {}", if has_nvidia { "NVIDIA CUDA" } else { "CPU only" });
 
@@ -77,22 +89,22 @@ pub fn install_comfyui(
         };
 
         println!("[Install] Installing PyTorch...");
-        let _ = Command::new(&python_bin)
-            .args(&torch_args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output();
+        let mut pip = Command::new(&python_bin);
+        pip.args(&torch_args).stdout(Stdio::piped()).stderr(Stdio::piped());
+        #[cfg(target_os = "windows")]
+        pip.creation_flags(CREATE_NO_WINDOW);
+        let _ = pip.output();
 
         // Step 3: Install ComfyUI requirements
         println!("[Install] Installing ComfyUI requirements...");
         let reqs = target_dir.join("requirements.txt");
         if reqs.exists() {
-            let _ = Command::new(&python_bin)
-                .args(["-m", "pip", "install", "-r"])
-                .arg(&reqs)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output();
+            let mut pip_req = Command::new(&python_bin);
+            pip_req.args(["-m", "pip", "install", "-r"]).arg(&reqs)
+                .stdout(Stdio::piped()).stderr(Stdio::piped());
+            #[cfg(target_os = "windows")]
+            pip_req.creation_flags(CREATE_NO_WINDOW);
+            let _ = pip_req.output();
         }
 
         println!("[Install] ComfyUI installation complete");
@@ -145,12 +157,12 @@ pub fn install_custom_node(
     if target_dir.exists() {
         // Already exists — git pull to update
         println!("[Install] Custom node {} already exists, updating...", node_name);
-        let output = Command::new("git")
-            .args(["pull"])
-            .current_dir(&target_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
+        let mut cmd = Command::new("git");
+        cmd.args(["pull"]).current_dir(&target_dir)
+            .stdout(Stdio::piped()).stderr(Stdio::piped());
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let output = cmd.output()
             .map_err(|e| format!("Git pull failed: {}", e))?;
 
         let status = if output.status.success() { "updated" } else { "update_failed" };
@@ -161,12 +173,12 @@ pub fn install_custom_node(
     } else {
         // Clone the repo
         println!("[Install] Cloning custom node {} from {}", node_name, repo_url);
-        let output = Command::new("git")
-            .args(["clone", &repo_url])
-            .arg(&target_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
+        let mut cmd = Command::new("git");
+        cmd.args(["clone", &repo_url]).arg(&target_dir)
+            .stdout(Stdio::piped()).stderr(Stdio::piped());
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let output = cmd.output()
             .map_err(|e| format!("Git clone failed: {}", e))?;
 
         if output.status.success() {
@@ -175,12 +187,12 @@ pub fn install_custom_node(
             if reqs.exists() {
                 let python_bin = state.python_bin.clone();
                 println!("[Install] Installing requirements for {}...", node_name);
-                let _ = Command::new(&python_bin)
-                    .args(["-m", "pip", "install", "-r"])
-                    .arg(&reqs)
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .output();
+                let mut pip = Command::new(&python_bin);
+                pip.args(["-m", "pip", "install", "-r"]).arg(&reqs)
+                    .stdout(Stdio::piped()).stderr(Stdio::piped());
+                #[cfg(target_os = "windows")]
+                pip.creation_flags(CREATE_NO_WINDOW);
+                let _ = pip.output();
             }
 
             Ok(serde_json::json!({

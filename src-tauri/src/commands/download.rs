@@ -579,3 +579,81 @@ pub async fn download_model_to_path(
 
     Ok(serde_json::json!({"status": "started", "id": id}))
 }
+
+// ─── File Size Validation ───
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckFileRequest {
+    pub subfolder: String,
+    pub filename: String,
+    pub expected_bytes: u64,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckFileResult {
+    pub filename: String,
+    pub exists: bool,
+    pub actual_bytes: u64,
+    pub complete: bool,
+}
+
+#[tauri::command]
+pub async fn check_model_sizes(
+    files: Vec<CheckFileRequest>,
+    state: State<'_, AppState>,
+) -> Result<Vec<CheckFileResult>, String> {
+    let comfy_path = {
+        let mut p = state.comfy_path.lock().unwrap();
+        if p.is_none() {
+            if let Some(found) = crate::commands::process::find_comfyui_path() {
+                *p = Some(found);
+            }
+        }
+        p.clone()
+    };
+
+    let mut results = Vec::with_capacity(files.len());
+
+    for file in &files {
+        let dest_dir = match models_dir(&comfy_path, &file.subfolder) {
+            Ok(d) => d,
+            Err(_) => {
+                results.push(CheckFileResult {
+                    filename: file.filename.clone(),
+                    exists: false,
+                    actual_bytes: 0,
+                    complete: false,
+                });
+                continue;
+            }
+        };
+
+        let dest_file = dest_dir.join(&file.filename);
+        if dest_file.exists() {
+            let actual = dest_file.metadata().map(|m| m.len()).unwrap_or(0);
+            let threshold = if file.expected_bytes > 0 {
+                (file.expected_bytes as f64 * 0.9) as u64
+            } else {
+                0
+            };
+            let complete = file.expected_bytes == 0 || actual >= threshold;
+            results.push(CheckFileResult {
+                filename: file.filename.clone(),
+                exists: true,
+                actual_bytes: actual,
+                complete,
+            });
+        } else {
+            results.push(CheckFileResult {
+                filename: file.filename.clone(),
+                exists: false,
+                actual_bytes: 0,
+                complete: false,
+            });
+        }
+    }
+
+    Ok(results)
+}

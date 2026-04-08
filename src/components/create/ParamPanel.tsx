@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import { useCreateStore } from '../../stores/createStore'
 import { SliderControl } from '../settings/SliderControl'
 import { WorkflowFinder } from './WorkflowFinder'
-import { Dice5, Info, AlertTriangle } from 'lucide-react'
+import { Dice5, Info, AlertTriangle, Film, ImageIcon } from 'lucide-react'
 import type { ClassifiedModel, ModelType } from '../../api/comfyui'
-import { snapToVideoGrid } from '../../api/comfyui'
+import { snapToVideoGrid, isI2VModel } from '../../api/comfyui'
 
 interface Props {
   imageModels: ClassifiedModel[]
@@ -47,16 +48,29 @@ const TYPE_BADGE: Record<ModelType, { label: string; color: string }> = {
   wan: { label: 'Wan', color: 'bg-orange-500/15 text-orange-300' },
   hunyuan: { label: 'Hunyuan', color: 'bg-red-500/15 text-red-300' },
   ltx: { label: 'LTX', color: 'bg-cyan-500/15 text-cyan-300' },
+  mochi: { label: 'Mochi', color: 'bg-pink-500/15 text-pink-300' },
+  cosmos: { label: 'Cosmos', color: 'bg-emerald-500/15 text-emerald-300' },
+  cogvideo: { label: 'CogVideo', color: 'bg-amber-500/15 text-amber-300' },
+  svd: { label: 'SVD', color: 'bg-indigo-500/15 text-indigo-300' },
+  framepack: { label: 'FramePack', color: 'bg-teal-500/15 text-teal-300' },
+  pyramidflow: { label: 'PyramidFlow', color: 'bg-violet-500/15 text-violet-300' },
+  allegro: { label: 'Allegro', color: 'bg-rose-500/15 text-rose-300' },
   unknown: { label: 'Model', color: 'bg-white/10 text-gray-400' },
 }
 
 export function ParamPanel({ imageModels, videoModels, samplerList, schedulerList, modelsLoaded }: Props) {
   const store = useCreateStore()
   const isVideo = store.mode === 'video'
+  const [videoSubTab, setVideoSubTab] = useState<'t2v' | 'i2v'>('t2v')
   const sizePresets = isVideo ? VID_SIZE_PRESETS : getImageSizePresets(store.imageModelType)
-  const models = isVideo ? videoModels : imageModels
 
-  const sel = 'w-full px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/8 text-gray-900 dark:text-white text-[11px] focus:outline-none focus:border-gray-400 dark:focus:border-white/20 appearance-none cursor-pointer'
+  // Filter video models by sub-tab
+  const filteredVideoModels = isVideo
+    ? videoModels.filter(m => videoSubTab === 'i2v' ? isI2VModel(m.name) : !isI2VModel(m.name))
+    : videoModels
+  const models = isVideo ? filteredVideoModels : imageModels
+
+  const sel = 'w-full px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/8 text-gray-900 dark:text-white text-[11px] focus:outline-none focus:border-gray-400 dark:focus:border-white/20 cursor-pointer'
   const lbl = 'text-[10px] font-medium text-gray-500 dark:text-gray-600 uppercase tracking-widest mb-1 block'
 
   const handleModelChange = (name: string) => {
@@ -73,15 +87,37 @@ export function ParamPanel({ imageModels, videoModels, samplerList, schedulerLis
 
   return (
     <div className="space-y-3">
-      {/* Workflow */}
-      <WorkflowFinder
-        modelName={activeModel}
-        modelType={isVideo ? (models.find(m => m.name === activeModel)?.type ?? 'unknown') : store.imageModelType}
-      />
+      {/* Video Sub-Tabs: Text to Video / Image to Video */}
+      {isVideo && (
+        <div className="flex rounded-lg bg-gray-100 dark:bg-white/5 p-0.5 gap-0.5">
+          <button
+            onClick={() => setVideoSubTab('t2v')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] font-medium transition-all ${
+              videoSubTab === 't2v'
+                ? 'bg-white dark:bg-white/15 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            <Film size={11} />
+            Text to Video
+          </button>
+          <button
+            onClick={() => setVideoSubTab('i2v')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] font-medium transition-all ${
+              videoSubTab === 'i2v'
+                ? 'bg-white dark:bg-white/15 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            <ImageIcon size={11} />
+            Image to Video
+          </button>
+        </div>
+      )}
 
       {/* Model */}
       <div>
-        <label className={lbl}>{isVideo ? 'Video Model' : 'Image Model'}</label>
+        <label className={lbl}>{isVideo ? (videoSubTab === 'i2v' ? 'I2V Model' : 'Video Model') : 'Image Model'}</label>
         {!modelsLoaded ? (
           <div className="px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/8 text-gray-400 dark:text-gray-600 text-[10px] animate-pulse">
             Loading...
@@ -209,6 +245,14 @@ export function ParamPanel({ imageModels, videoModels, samplerList, schedulerLis
           )}
         </>
       )}
+
+      {/* Workflow (bottom) */}
+      <div className="pt-2 border-t border-gray-200 dark:border-white/5">
+        <WorkflowFinder
+          modelName={activeModel}
+          modelType={isVideo ? (models.find(m => m.name === activeModel)?.type ?? 'unknown') : store.imageModelType}
+        />
+      </div>
     </div>
   )
 }
