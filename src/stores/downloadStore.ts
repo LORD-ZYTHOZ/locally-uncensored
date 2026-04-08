@@ -1,12 +1,12 @@
 import { create } from 'zustand'
-import { getDownloadProgress, pauseDownload, cancelDownload, resumeDownload, startModelDownload, type DownloadProgress } from '../api/discover'
+import { getDownloadProgress, pauseDownload, cancelDownload, resumeDownload, startModelDownload, startModelDownloadToPath, type DownloadProgress } from '../api/discover'
 
 // Maps filename → bundle name for grouped display
 type BundleMap = Record<string, string>
 
 interface DownloadStoreState {
   downloads: Record<string, DownloadProgress>
-  downloadMeta: Record<string, { url: string; subfolder: string }>
+  downloadMeta: Record<string, { url: string; subfolder: string; destDir?: string }>
   bundleMap: BundleMap  // filename → bundle name
   polling: boolean
   pollInterval: ReturnType<typeof setInterval> | null
@@ -14,7 +14,7 @@ interface DownloadStoreState {
   refresh: () => Promise<void>
   startPolling: () => void
   stopPolling: () => void
-  setMeta: (filename: string, url: string, subfolder: string) => void
+  setMeta: (filename: string, url: string, subfolder: string, destDir?: string) => void
   setBundleGroup: (bundleName: string, filenames: string[]) => void
   markComplete: (filename: string) => void
   pause: (id: string) => Promise<void>
@@ -83,8 +83,8 @@ export const useDownloadStore = create<DownloadStoreState>()((set, get) => ({
     set({ polling: false, pollInterval: null })
   },
 
-  setMeta: (filename, url, subfolder) => {
-    set(s => ({ downloadMeta: { ...s.downloadMeta, [filename]: { url, subfolder } } }))
+  setMeta: (filename, url, subfolder, destDir?) => {
+    set(s => ({ downloadMeta: { ...s.downloadMeta, [filename]: { url, subfolder, destDir } } }))
   },
 
   setBundleGroup: (bundleName, filenames) => {
@@ -134,8 +134,12 @@ export const useDownloadStore = create<DownloadStoreState>()((set, get) => ({
       delete updated[id]
       return { downloads: updated }
     })
-    // Re-start the download from scratch
-    await startModelDownload(meta.url, meta.subfolder, id)
+    // Re-start the download — use path-based for GGUF text models, subfolder-based for ComfyUI
+    if (meta.destDir) {
+      await startModelDownloadToPath(meta.url, meta.destDir, id)
+    } else {
+      await startModelDownload(meta.url, meta.subfolder, id)
+    }
     get().startPolling()
   },
 

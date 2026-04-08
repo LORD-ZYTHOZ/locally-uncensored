@@ -388,7 +388,7 @@ export function DiscoverModels({ category }: Props) {
     }
     setHfModelPath(destDir)
     try {
-      dlStore.getState().setMeta(model.filename, model.downloadUrl, 'gguf')
+      dlStore.getState().setMeta(model.filename, model.downloadUrl, 'gguf', destDir)
       const expectedBytes = model.sizeGB ? Math.round(model.sizeGB * 1_073_741_824) : undefined
       await startModelDownloadToPath(model.downloadUrl, destDir, model.filename, expectedBytes)
       dlStore.getState().startPolling()
