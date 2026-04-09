@@ -140,8 +140,8 @@ export function categorizeNodes(allNodes: Record<string, NodeMetadata>): Categor
     // Wrapper loaders (custom nodes)
     CogVideoXModelLoader: 'loaders',
     CogVideoXCLIPLoader: 'loaders',
-    FramePackModelLoader: 'loaders',
-    FramePackEncode: 'loaders',
+    LoadFramePackModel: 'loaders',
+    DownloadAndLoadFramePackModel: 'loaders',
     PyramidFlowModelLoader: 'loaders',
     PyramidFlowVAELoader: 'loaders',
     AllegroModelLoader: 'loaders',

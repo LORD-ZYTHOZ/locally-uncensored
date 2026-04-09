@@ -843,7 +843,7 @@ export const CUSTOM_NODE_REGISTRY: Record<string, { repo: string; name: string; 
   'framepack-wrapper': {
     repo: 'https://github.com/kijai/ComfyUI-FramePackWrapper',
     name: 'ComfyUI-FramePackWrapper',
-    requiredNodes: ['FramePackModelLoader', 'FramePackEncode', 'FramePackSampler'],
+    requiredNodes: ['LoadFramePackModel', 'FramePackSampler'],
   },
   'pyramidflow-wrapper': {
     repo: 'https://github.com/kijai/ComfyUI-PyramidFlowWrapper',

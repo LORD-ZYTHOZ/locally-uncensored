@@ -580,16 +580,23 @@ function buildFramePackWorkflow(params: VideoParams, seed: number, nodes: Catego
   const samplerId = String(n++)
   const decodeId = String(n++)
 
-  workflow[modelId] = { class_type: 'FramePackModelLoader', inputs: { model: params.model } }
+  workflow[modelId] = { class_type: 'LoadFramePackModel', inputs: { model: params.model, base_precision: 'fp8_e4m3fn', quantization: 'disabled', load_device: 'main_device' } }
   workflow[clipId] = { class_type: 'CLIPLoader', inputs: { clip_name: 'llava_llama3_fp8_scaled.safetensors', type: 'wan', device: 'default' } }
-  workflow[clipVisionId] = { class_type: 'CLIPVisionLoader', inputs: { clip_name: 'sigclip_vision_patch14_384.safetensors' } }
   workflow[vaeId] = { class_type: 'VAELoader', inputs: { vae_name: 'hunyuanvideo15_vae_fp16.safetensors' } }
   workflow[imageId] = { class_type: 'LoadImage', inputs: { image: params.inputImage || 'input_image.png' } }
-  workflow[encodeId] = { class_type: 'FramePackEncode', inputs: { image: [imageId, 0], clip_vision: [clipVisionId, 0] } }
   workflow[posId] = { class_type: 'CLIPTextEncode', inputs: { text: params.prompt, clip: [clipId, 0] } }
+  const negId = String(n++)
+  workflow[negId] = { class_type: 'CLIPTextEncode', inputs: { text: '', clip: [clipId, 0] } }
   workflow[samplerId] = {
     class_type: 'FramePackSampler',
-    inputs: { model: [modelId, 0], positive: [posId, 0], image_embeds: [encodeId, 0], latent: [encodeId, 1], seed, steps: params.steps, cfg: params.cfgScale },
+    inputs: {
+      model: [modelId, 0], positive: [posId, 0], negative: [negId, 0],
+      start_latent: [imageId, 0], steps: params.steps, cfg: params.cfgScale || 1.0,
+      guidance_scale: 9.0, shift: 3.0, seed, latent_window_size: 9,
+      total_second_length: (params.numFrames || 5) / (params.fps || 16),
+      gpu_memory_preservation: 6.0, sampler: 'unipc',
+      use_teacache: true, teacache_rel_l1_thresh: 0.15,
+    },
   }
   workflow[decodeId] = { class_type: 'VAEDecode', inputs: { samples: [samplerId, 0], vae: [vaeId, 0] } }
 

@@ -16,7 +16,7 @@ function allNodesAvailable(): CategorizedNodes {
       'UNETLoader', 'CheckpointLoaderSimple', 'CLIPLoader', 'VAELoader',
       'ImageOnlyCheckpointLoader', 'CLIPVisionLoader', 'LoadImage',
       'CogVideoXModelLoader', 'CogVideoXCLIPLoader',
-      'FramePackModelLoader', 'FramePackEncode',
+      'LoadFramePackModel', 'DownloadAndLoadFramePackModel',
       'PyramidFlowModelLoader', 'PyramidFlowVAELoader',
       'AllegroModelLoader',
     ],
