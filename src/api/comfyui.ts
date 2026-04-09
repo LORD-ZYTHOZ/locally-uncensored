@@ -73,7 +73,8 @@ export function classifyModel(name: string): ModelType {
   if (lower.includes('hunyuan')) return 'hunyuan'
   if (lower.includes('ltx')) return 'ltx'
 
-  // FLUX variants
+  // FLUX variants + Z-Image (same architecture as FLUX 2: UNETLoader + separate VAE/CLIP)
+  if (lower.includes('z_image') || lower.includes('z-image') || lower.includes('zimage')) return 'flux2'
   if (lower.includes('flux-2') || lower.includes('flux2')) return 'flux2'
   if (lower.includes('flux')) return 'flux'
 
