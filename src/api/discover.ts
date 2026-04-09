@@ -116,6 +116,8 @@ export async function checkBundlesInstalled(bundles: ModelBundle[]): Promise<Rec
 
   // Fallback: for bundles not detected by exact filename, check ComfyUI's model lists
   // This catches variant files (e.g. fp8 version of a model with different filename)
+  // STRICT: only exact base-name match — no substring matching (caused false positives
+  // where z_image_turbo matched z_image_base, or gemma-4-31b matched gemma-4-e4b)
   const undetected = bundles.filter(b => !result[b.name])
   if (undetected.length > 0) {
     try {
@@ -135,7 +137,7 @@ export async function checkBundlesInstalled(bundles: ModelBundle[]): Promise<Rec
           return models.some(m => {
             const mBase = m.replace(/\.[^.]+$/, '').toLowerCase()
               .replace(/[-_](fp4|fp8|fp16|bf16|e4m3fn|scaled|fp8_e4m3fn_scaled)$/g, '')
-            return mBase === base || mBase.includes(base) || base.includes(mBase)
+            return mBase === base
           })
         })
         if (allFound) result[bundle.name] = true
