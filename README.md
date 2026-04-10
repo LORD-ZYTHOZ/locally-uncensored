@@ -135,11 +135,7 @@ Download the installer from [Releases](https://github.com/PurpleDoubleD/locally-
 - **`.exe`** — NSIS installer (recommended)
 - **`.msi`** — Windows Installer
 
-### Linux
-- **`.AppImage`** — Portable, no install needed
-
-### macOS
-Build from source (see below).
+> **Other platforms:** The source code builds on Linux and macOS via `npm run tauri build`, but only Windows is officially tested and supported.
 
 > **Plug & Play:** Just install and launch. The setup wizard auto-detects all 12 supported local backends ([Ollama](https://ollama.com/), [LM Studio](https://lmstudio.ai/), [vLLM](https://github.com/vllm-project/vllm), [KoboldCpp](https://github.com/LostRuins/koboldcpp), llama.cpp, LocalAI, Jan, GPT4All, text-generation-webui, TabbyAPI, Aphrodite, SGLang). Nothing installed yet? The wizard shows one-click install links for every backend.
 
@@ -250,8 +246,7 @@ npm run tauri build  # Production binary
 | Platform | Status | Download |
 |----------|--------|----------|
 | **Windows** (10/11) | Fully tested | `.exe` / `.msi` |
-| **Linux** (Ubuntu 22.04+) | Fully tested | `.AppImage` |
-| **macOS** | Community testing | Build from source |
+| Linux / macOS | Build from source | `npm run tauri build` |
 
 ## Contributing
 
