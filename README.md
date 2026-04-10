@@ -34,40 +34,23 @@ No cloud. No censorship. No data collection. Auto-detects 12 local backends. You
 
 ---
 
-## v2.3.0 — Coming Soon
+## v2.3.0 — Current Release
 
-**ComfyUI Plug & Play, 20 Video/Image Models, Image-to-Image, Z-Image Support**
+**ComfyUI Plug & Play, 20 Model Bundles, Image-to-Image, Z-Image, FramePack I2V**
 
 - **ComfyUI Plug & Play** — Auto-detect, one-click install, auto-start. Zero config image and video generation.
-- **20 Model Bundles** — 14 video + 6 image bundles with one-click download (Wan 2.1, HunyuanVideo, FLUX 2, Z-Image, CogVideoX, FramePack, and more).
-- **Z-Image Turbo/Base** — Uncensored image model with own strategy and qwen_image CLIP type. 8-15 seconds per image.
-- **Image-to-Image (I2I)** — Upload a source image, adjust denoise strength (0.0-1.0), transform with any prompt. Works with all image models.
-- **Image-to-Video (I2V)** — SVD and FramePack support with drag & drop image upload.
-- **Dynamic Workflow Builder** — Auto-detects installed nodes and builds the correct pipeline for any model type.
+- **20 Model Bundles** — 8 image + 12 video bundles with one-click download. Verified models marked, untested show "Coming Soon".
+- **Z-Image Turbo/Base** — Uncensored image model. 8-15 seconds per image. No safety filters. Text-to-Image and Image-to-Image.
+- **FLUX 2 Klein** — Next-gen FLUX architecture with Qwen 3 text encoder. Fastest FLUX model.
+- **Image-to-Image (I2I)** — Upload a source image, adjust denoise strength (0.0-1.0), transform with any prompt. Works with all image models (SDXL, FLUX, Z-Image).
+- **Image-to-Video (I2V)** — FramePack F1 and CogVideoX support with drag & drop image upload.
+- **FramePack F1** — Revolutionary I2V: runs on 6 GB VRAM via next-frame prediction.
+- **Dynamic Workflow Builder** — 14 strategies. Auto-detects installed nodes and builds the correct pipeline.
 - **VRAM-Aware Model Filtering** — Lightweight / Mid-Range / High-End tabs based on GPU VRAM.
-- **Unified Download Manager** — Track all downloads (text models, image models, video models) with progress, speed, pause/resume.
-- **Process Cleanup** — ComfyUI Python process automatically terminates when app is closed or killed.
-
----
-
-## v2.2.3 — Latest Release
-
-**Plug & Play Setup, Multi-Provider Overhaul, Codex Agent, MCP Tools**
-
-- **Plug & Play Setup** — First-launch wizard auto-detects 12 local backends (Ollama, LM Studio, vLLM, KoboldCpp, Jan, GPT4All, llama.cpp, LocalAI, text-generation-webui, TabbyAPI, Aphrodite, SGLang). Nothing installed? One-click install links. Re-Scan after install. Zero config.
-- **20+ Provider Presets** — Every local and cloud backend pre-configured. Just pick and go.
-- **Codex Coding Agent** — Three-tab system (LU | Codex | OpenClaw). Dedicated coding mode with file tree, native folder picker, shell execution, up to 20 iterations per task.
-- **13 MCP Tools** — Dynamic tool registry: web_search, web_fetch, file_read, file_write, file_list, file_search, shell_execute, code_execute, system_info, process_list, screenshot, image_generate, run_workflow.
-- **Granular Permissions** — 7 categories (web, filesystem, terminal, system, desktop, image, workflow) with blocked/confirm/auto levels. Per-conversation overrides.
-- **File Upload + Vision** — Drag & drop, Ctrl+V paste, clip button. Up to 5 images per message. Works across all providers.
-- **Thinking Mode** — Provider-agnostic. Native support where available, system prompt fallback for others. Collapsible thinking blocks.
-- **Model Load/Unload** — Power icons in header to load/unload models from VRAM.
-- **Smart Tool Selection** — Keyword-based filtering saves ~80% of tool-definition tokens.
-- **JSON Repair** — Fixes broken JSON from local LLMs (trailing commas, single quotes, missing braces).
-- **Native PC Control** — Rust commands for shell, filesystem, system info (async, non-blocking).
-- **UI Overhaul** — 15% larger UI, compact message bubbles, monochrome tool blocks, collapsible code blocks, light mode support.
-
-See [Release Notes](https://github.com/PurpleDoubleD/locally-uncensored/releases/tag/v2.2.2).
+- **Unified Download Manager** — Track all downloads with progress, speed, retry for failed files.
+- **Think Mode in Chat Input** — Toggle thinking mode directly from the message input area.
+- **Process Cleanup** — ComfyUI auto-terminates when app is closed (Windows Job Object).
+- **Hardware-Aware Onboarding** — Recommends Gemma 4, Qwen 3.5, and other models based on your GPU VRAM.
 
 ---
 
@@ -84,6 +67,7 @@ See [Release Notes](https://github.com/PurpleDoubleD/locally-uncensored/releases
 | **Local Benchmark** | **Yes** | No | No | No |
 | Image Generation | **Yes** | No | No | No |
 | **Image-to-Image** | **Yes** | No | No | No |
+| **Image-to-Video** | **Yes** | No | No | No |
 | Video Generation | **Yes** | No | No | No |
 | **File Upload + Vision** | **Yes** | Yes | Yes | No |
 | **Thinking Mode** | **Yes** | No | No | No |
@@ -106,11 +90,13 @@ See [Release Notes](https://github.com/PurpleDoubleD/locally-uncensored/releases
 - **Multi-Provider** — 20+ presets. Local: Ollama, LM Studio, vLLM, KoboldCpp, llama.cpp, LocalAI, Jan, TabbyAPI, GPT4All, Aphrodite, SGLang, TGI. Cloud: OpenAI, Anthropic, OpenRouter, Groq, Together, DeepSeek, Mistral. Switch per conversation.
 - **Codex Coding Agent** — Reads codebase, writes code, runs shell commands. File tree with native folder picker. Up to 20 tool iterations.
 - **Agent Mode** — 13 MCP tools: web search, file I/O, shell, code execution, screenshots, system info. Native + Hermes XML fallback.
-- **Image Generation** — FLUX.1, Juggernaut XL, Pony Diffusion via ComfyUI. Full parameter control, no content filter.
-- **Video Generation** — Wan 2.1/2.2, HunyuanVideo, LTX Video on your GPU.
+- **Image Generation** — FLUX 2 Klein, FLUX.1 (schnell/dev), Z-Image Turbo/Base, Juggernaut XL, RealVisXL, DreamShaper XL via ComfyUI. Full parameter control, no content filter.
+- **Image-to-Image** — Upload a source image, adjust denoise strength, transform with any image model.
+- **Video Generation** — Wan 2.1, HunyuanVideo 1.5, LTX 2.3, AnimateDiff Lightning, CogVideoX, FramePack F1 on your GPU.
+- **Image-to-Video** — FramePack F1 (6 GB VRAM), CogVideoX 5B, SVD-XT. Upload an image, get video.
 
 ### Intelligence
-- **Thinking Mode** — Provider-agnostic. See the AI's reasoning before the answer.
+- **Thinking Mode** — Provider-agnostic. See the AI's reasoning before the answer. Toggle from chat input.
 - **File Upload + Vision** — Drag & drop, paste, clip button. Vision models analyze images.
 - **Granular Permissions** — 7 tool categories, 3 permission levels, per-conversation overrides.
 - **Smart Tool Selection** — Reduces tool definitions per request by ~80%. JSON repair for local LLMs.
@@ -182,7 +168,7 @@ Installs Node.js, Ollama, downloads an uncensored model, launches the app.
 
 ### Image & Video Generation
 
-Open the **Create** tab → click **"Install ComfyUI Automatically"**. One click, fully automated.
+Open the **Create** tab. ComfyUI is auto-detected or one-click installed. Models download with one click. Workflow is set to **Auto** — just write a prompt and hit Generate.
 
 ---
 
@@ -192,9 +178,10 @@ Open the **Create** tab → click **"Install ComfyUI Automatically"**. One click
 
 | Model | VRAM | Best For |
 |-------|------|----------|
-| **Gemma 4 26B MoE** | 8 GB | Vision + native tools. Apache 2.0. Runs like 4B. |
-| **Qwen3-Coder 30B** | 16 GB | Best coding agent. 256K context. |
-| **Qwen 3.5 Abliterated** | 6-16 GB | Best overall intelligence. |
+| **Gemma 4 E4B** | 4 GB | Lightweight, fast, great for small GPUs. |
+| **Qwen 3.5 9B** | 8 GB | Strongest reasoning + coding at 9B. |
+| **Gemma 4 27B** | 16 GB | Frontier dense model, native tools + vision. |
+| **Qwen 3.5 35B MoE** | 16 GB | Best agentic, 256K context. SWE-bench leader. |
 | Hermes 3 8B | 6 GB | Agent Mode. Uncensored + tool calling. |
 | DeepSeek R1 (8B-70B) | 6-48 GB | Chain-of-thought reasoning. |
 
@@ -202,15 +189,20 @@ Open the **Create** tab → click **"Install ComfyUI Automatically"**. One click
 
 | Model | VRAM | Notes |
 |-------|------|-------|
-| FLUX.1 Dev / Schnell | 8-10 GB | Best text-to-image |
-| Juggernaut XL V9 | 6 GB | Best photorealistic |
+| FLUX.1 Schnell / Dev | 8-10 GB | Best text-to-image. Fast (schnell) or quality (dev). |
+| FLUX 2 Klein 4B | 8-10 GB | Next-gen, fastest FLUX model. |
+| Z-Image Turbo | 10-16 GB | Uncensored, 8-15 sec per image. |
+| Juggernaut XL V9 | 6 GB | Best photorealistic SDXL. |
 
 ### Video (ComfyUI)
 
 | Model | VRAM | Notes |
 |-------|------|-------|
-| Wan 2.1 T2V 1.3B | 8-10 GB | Fast entry point |
-| Wan 2.1 T2V 14B | 12+ GB | High quality |
+| Wan 2.1 T2V 1.3B | 8-10 GB | Fast entry point, 480p. |
+| Wan 2.1 T2V 14B | 12+ GB | High quality, 720p. |
+| FramePack F1 (I2V) | 6 GB | Image-to-video, revolutionary low VRAM. |
+| AnimateDiff Lightning | 6-8 GB | Ultra-fast 4-step animation. |
+| HunyuanVideo 1.5 | 12+ GB | Excellent temporal consistency. |
 
 ---
 
@@ -223,16 +215,22 @@ Open the **Create** tab → click **"Install ComfyUI Automatically"**. One click
 - [x] File Upload + Vision
 - [x] Thinking Mode (provider-agnostic)
 - [x] Model Load/Unload from header
-- [x] Multi-Provider (20+ presets: Ollama, LM Studio, vLLM, KoboldCpp, OpenAI, Anthropic, and more)
+- [x] Multi-Provider (20+ presets)
 - [x] Agent Mode + Workflows
 - [x] Memory System
 - [x] A/B Compare + Local Benchmark
 - [x] RAG / Document Chat
 - [x] Voice Chat (STT + TTS)
-- [ ] OpenClaw Integration
+- [x] ComfyUI Plug & Play (auto-detect, one-click install)
+- [x] 20 Image + Video Model Bundles
+- [x] Image-to-Image (I2I)
+- [x] Image-to-Video (I2V) — FramePack, CogVideoX, SVD
+- [x] Z-Image + FLUX 2 support
+- [x] Dynamic Workflow Builder (14 strategies)
+- [x] VRAM-Aware Model Filtering
+- [x] Think Mode in Chat Input
 - [ ] Voice Mode (Qwen Omni live voice)
-- [ ] Video Upload
-- [ ] Create Modes (img2img, upscale, inpainting)
+- [ ] Upscale + Inpainting
 - [ ] Plugin System
 
 ---

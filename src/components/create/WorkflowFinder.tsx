@@ -43,7 +43,7 @@ export function WorkflowFinder({ modelName, modelType }: Props) {
           onClick={() => setModalOpen(true)}
           className="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white text-sm hover:bg-gray-200 dark:hover:bg-white/10 transition-colors text-left"
         >
-          {activeWorkflow ? activeWorkflow.name : 'Load Workflow'}
+          {activeWorkflow ? activeWorkflow.name : 'Auto'}
         </button>
 
         {/* Active workflow info badge + clear */}

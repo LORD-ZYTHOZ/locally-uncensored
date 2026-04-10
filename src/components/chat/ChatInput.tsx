@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { Send, Square, Paperclip, X } from 'lucide-react'
+import { Send, Square, Paperclip, X, Brain } from 'lucide-react'
 import { VoiceButton } from './VoiceButton'
 import { ApprovalDialog } from './ApprovalDialog'
 import { useVoiceStore } from '../../stores/voiceStore'
+import { useSettingsStore } from '../../stores/settingsStore'
+import { useModelStore } from '../../stores/modelStore'
+import { isThinkingCompatible } from '../../lib/model-compatibility'
 import type { AgentToolCall } from '../../types/agent-mode'
 import type { ImageAttachment } from '../../types/chat'
 
@@ -37,6 +40,10 @@ export function ChatInput({ onSend, onStop, isGenerating, pendingApproval, onApp
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isTranscribing = useVoiceStore((s) => s.isTranscribing)
+  const thinkingEnabled = useSettingsStore((s) => s.settings.thinkingEnabled)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const activeModel = useModelStore((s) => s.activeModel)
+  const canThink = isThinkingCompatible(activeModel)
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -183,6 +190,24 @@ export function ChatInput({ onSend, onStop, isGenerating, pendingApproval, onApp
             rows={1}
             className="flex-1 bg-transparent resize-none text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none text-[0.75rem] leading-relaxed max-h-[200px]"
           />
+
+          {/* Think toggle */}
+          <button
+            onClick={() => {
+              if (canThink) updateSettings({ thinkingEnabled: !thinkingEnabled })
+            }}
+            className={`flex items-center gap-1 px-1.5 py-1 rounded-md transition-all shrink-0 text-[0.6rem] font-medium ${
+              thinkingEnabled && canThink
+                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                : !canThink
+                  ? 'text-gray-600 opacity-40 cursor-default'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+            }`}
+            title={canThink ? (thinkingEnabled ? 'Thinking ON' : 'Thinking OFF') : 'Model does not support thinking'}
+          >
+            <Brain size={11} />
+            <span>Think</span>
+          </button>
 
           {isGenerating ? (
             <motion.button

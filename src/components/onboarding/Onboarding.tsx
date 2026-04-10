@@ -638,11 +638,6 @@ export function Onboarding() {
                               Recommended
                             </span>
                           )}
-                          {model.agent && (
-                            <span className={`text-[0.5rem] px-1 py-0.5 rounded ${isDark ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-green-50 text-green-700 border border-green-200'}`}>
-                              Tool Calling
-                            </span>
-                          )}
                         </div>
                         <p className={`text-[0.6rem] mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{model.description}</p>
                         <p className={`text-[0.55rem] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>

@@ -1,11 +1,10 @@
-import { MessageSquare, Code, Bot } from 'lucide-react'
+import { MessageSquare, Code } from 'lucide-react'
 import { useCodexStore } from '../../stores/codexStore'
 import type { ChatMode } from '../../types/codex'
 
 const TABS: { mode: ChatMode; label: string; icon: typeof Code; disabled?: boolean; tag?: string }[] = [
   { mode: 'lu', label: 'LU', icon: MessageSquare },
   { mode: 'codex', label: 'Codex', icon: Code },
-  { mode: 'openclaw', label: 'OpenClaw', icon: Bot, disabled: true, tag: 'Soon' },
 ]
 
 export function ChatModeTabs() {

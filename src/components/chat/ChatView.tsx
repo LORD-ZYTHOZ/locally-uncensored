@@ -93,10 +93,6 @@ export function ChatView() {
               {/* Codex mode */}
               {chatMode === 'codex' ? (
                 <CodexView />
-              ) : chatMode === 'openclaw' ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <p className="text-[0.7rem] text-gray-600">OpenClaw — Coming Soon</p>
-                </div>
               ) : (<>
               {/* Top bar — compact (LU mode) */}
               <div className="flex items-center gap-1.5 px-2 pt-0.5">
@@ -121,36 +117,6 @@ export function ChatView() {
                     )}
                   </div>
                 )}
-
-                {/* Thinking toggle */}
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      if (!canThink) {
-                        setThinkHint(`${activeModel} doesn't support Think mode. Try QwQ, DeepSeek-R1, or Qwen3.`)
-                        setTimeout(() => setThinkHint(''), 4000)
-                        return
-                      }
-                      updateSettings({ thinkingEnabled: !thinkingEnabled })
-                    }}
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded border transition-colors text-[0.55rem] ${
-                      thinkingEnabled && canThink
-                        ? 'border-blue-500/30 text-blue-400'
-                        : !canThink
-                          ? 'border-gray-200 dark:border-white/[0.06] text-gray-500 opacity-60'
-                          : 'border-gray-200 dark:border-white/[0.06] text-gray-600'
-                    }`}
-                    title={canThink ? 'Toggle thinking mode — model reasons before answering' : `${activeModel} does not support thinking mode`}
-                  >
-                    <Brain size={9} />
-                    <span>Think</span>
-                  </button>
-                  {thinkHint && (
-                    <div className="absolute left-0 top-full mt-1 z-50 w-56 px-2 py-1.5 rounded-md bg-amber-900/90 text-amber-200 text-[0.6rem] leading-tight shadow-lg border border-amber-700/50">
-                      {thinkHint}
-                    </div>
-                  )}
-                </div>
 
                 {/* Spacer */}
                 <div className="flex-1" />

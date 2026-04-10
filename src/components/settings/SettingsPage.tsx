@@ -332,20 +332,11 @@ export function SettingsPage() {
           <PersonaPanel />
         </Section>
 
+
         {/* ── Agent Mode ─────────────────────────────── */}
         {FEATURE_FLAGS.AGENT_MODE && (
           <Section title="Agent Permissions">
             <PermissionSettings />
-            <div className="space-y-0.5 mt-3 pt-3 border-t border-white/5">
-              <span className="text-[0.6rem] text-gray-500">Recommended Models</span>
-              {getRecommendedAgentModels().map((m) => (
-                <div key={m.name} className="flex items-center gap-1.5 py-0.5">
-                  {m.hot && <span className="text-[0.5rem] text-orange-400 font-bold">HOT</span>}
-                  <span className="text-[0.65rem] text-gray-300">{m.label}</span>
-                  <span className="text-[0.55rem] text-gray-600">— {m.reason}</span>
-                </div>
-              ))}
-            </div>
             <button
               onClick={() => useAgentModeStore.getState().setTutorialCompleted()}
               className="text-[0.6rem] text-gray-500 hover:text-gray-300 transition-colors"

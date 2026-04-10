@@ -24,7 +24,7 @@
 <meta name="theme-color" content="#0a0a0a">
 <link rel="icon" href="./favicon.png">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Locally Uncensored","applicationCategory":"DeveloperApplication","applicationSubCategory":"Artificial Intelligence","operatingSystem":"Windows, macOS, Linux","description":"All-in-one local AI desktop app for uncensored chat, coding agent, image generation, and video creation. 13 built-in tools, multi-provider support, granular permissions. Run Gemma 4, Qwen 3.5, FLUX, and Wan 2.1 models locally.","url":"https://locallyuncensored.com/","downloadUrl":"https://github.com/PurpleDoubleD/locally-uncensored/releases/download/v2.2.3/Locally.Uncensored_2.2.3_x64-setup.exe","softwareVersion":"2.2.3","license":"https://opensource.org/licenses/MIT","author":{"@type":"Person","name":"PurpleDoubleD","url":"https://github.com/PurpleDoubleD"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Plug & Play Setup with 12 Local Backend Auto-Detection","Uncensored AI Chat with 20+ Provider Presets","Codex Coding Agent with 13 MCP Tools","Multi-Provider: Ollama, LM Studio, vLLM, KoboldCpp, llama.cpp, LocalAI, Jan, OpenAI, Anthropic, OpenRouter, Groq, and more","Image Generation via ComfyUI","Video Generation with Wan 2.1","Granular Permission System","File Upload with Vision Support","Thinking Mode","A/B Model Compare","100% Offline and Private"],"screenshot":"https://raw.githubusercontent.com/PurpleDoubleD/locally-uncensored/master/docs/social-preview.png","softwareRequirements":"Any OpenAI-compatible backend (Ollama, LM Studio, vLLM, KoboldCpp, etc.) or cloud API key","memoryRequirements":"8 GB RAM minimum","storageRequirements":"6 GB for default model"}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Locally Uncensored","applicationCategory":"DeveloperApplication","applicationSubCategory":"Artificial Intelligence","operatingSystem":"Windows, macOS, Linux","description":"All-in-one local AI desktop app for uncensored chat, coding agent, image generation, and video creation. 13 built-in tools, multi-provider support, granular permissions. Run Gemma 4, Qwen 3.5, FLUX, and Wan 2.1 models locally.","url":"https://locallyuncensored.com/","downloadUrl":"https://github.com/PurpleDoubleD/locally-uncensored/releases/download/v2.2.3/Locally.Uncensored_2.2.3_x64-setup.exe","softwareVersion":"2.2.3","license":"https://opensource.org/licenses/MIT","author":{"@type":"Person","name":"PurpleDoubleD","url":"https://github.com/PurpleDoubleD"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Plug & Play Setup with 12 Local Backend Auto-Detection","Uncensored AI Chat with 20+ Provider Presets","Codex Coding Agent with 13 MCP Tools","Multi-Provider: Ollama, LM Studio, vLLM, KoboldCpp, llama.cpp, LocalAI, Jan, OpenAI, Anthropic, OpenRouter, Groq, and more","Image Generation via ComfyUI (FLUX 2, Z-Image, SDXL)","Image-to-Image with Denoise Control","Video Generation (Wan 2.1, HunyuanVideo, LTX, AnimateDiff, FramePack)","Image-to-Video (FramePack F1, CogVideoX, SVD)","Granular Permission System","File Upload with Vision Support","Thinking Mode","A/B Model Compare","100% Offline and Private"],"screenshot":"https://raw.githubusercontent.com/PurpleDoubleD/locally-uncensored/master/docs/social-preview.png","softwareRequirements":"Any OpenAI-compatible backend (Ollama, LM Studio, vLLM, KoboldCpp, etc.) or cloud API key","memoryRequirements":"8 GB RAM minimum","storageRequirements":"6 GB for default model"}
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Organization","name":"PurpleDoubleD","url":"https://github.com/PurpleDoubleD","sameAs":["https://github.com/PurpleDoubleD","https://reddit.com/user/GroundbreakingMall54"]}
@@ -265,14 +265,14 @@ html,body{overflow-x:hidden}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
       </div>
       <h3>Image Generation</h3>
-      <p>FLUX.1, Juggernaut XL, Pony Diffusion via ComfyUI. Full parameter control, no content filter. One-click ComfyUI setup.</p>
+      <p>FLUX 2 Klein, FLUX.1, Z-Image Turbo, Juggernaut XL via ComfyUI. Text-to-Image and Image-to-Image. No content filter. One-click setup.</p>
     </div>
     <div class="feature-cell">
       <div class="feature-icon">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
       </div>
       <h3>Video Generation</h3>
-      <p>Wan 2.1/2.2, HunyuanVideo, LTX Video. Text-to-video on your own GPU. No watermarks, no usage limits.</p>
+      <p>Wan 2.1, HunyuanVideo 1.5, LTX 2.3, AnimateDiff, FramePack F1 (I2V). Text-to-video and image-to-video on your GPU. No watermarks.</p>
     </div>
     <div class="feature-cell">
       <div class="feature-icon">
@@ -325,9 +325,9 @@ html,body{overflow-x:hidden}
 </section>
 
 <section class="agent-section reveal" id="whats-new">
-  <div class="section-label">New in v2.2.3</div>
-  <h2 class="section-heading">Plug & Play. Codex Agent. MCP Tools.</h2>
-  <div class="section-desc">Install, launch, chat. The setup wizard auto-detects your local backends. Coding agent with 13 tools. Granular permissions. File upload. Thinking mode.</div>
+  <div class="section-label">New in v2.3.0</div>
+  <h2 class="section-heading">ComfyUI Plug & Play. 20 Model Bundles. I2I + I2V.</h2>
+  <div class="section-desc">One-click ComfyUI install. 20 image + video bundles. Z-Image uncensored. FramePack I2V on 6 GB VRAM. Image-to-Image. Dynamic workflows. Hardware-aware onboarding.</div>
 
   <div class="agent-grid">
     <div class="agent-card">
@@ -338,7 +338,7 @@ html,body{overflow-x:hidden}
     <div class="agent-card">
       <div class="agent-icon" style="font-size:1.2rem;color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
       <h3>Codex Coding Agent</h3>
-      <p>Three-tab system: LU | Codex | OpenClaw. Codex reads your codebase, writes files, runs shell commands. File tree with native folder picker.</p>
+      <p>Dedicated coding mode. Reads your codebase, writes files, runs shell commands. File tree with native folder picker. Up to 20 iterations per task.</p>
     </div>
     <div class="agent-card">
       <div class="agent-icon" style="font-size:1.2rem;color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
@@ -385,7 +385,9 @@ html,body{overflow-x:hidden}
       <tr><td>Coding Agent</td><td class="check hl">Codex</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
       <tr><td>Agent Tools (MCP)</td><td class="check hl">13 Tools</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
       <tr><td>Image Generation</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
+      <tr><td>Image-to-Image</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
       <tr><td>Video Generation</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
+      <tr><td>Image-to-Video</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
       <tr><td>File Upload + Vision</td><td class="check hl">Yes</td><td class="check">Yes</td><td class="check">Yes</td><td class="cross">No</td></tr>
       <tr><td>Thinking Mode</td><td class="check hl">Yes</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
       <tr><td>Granular Permissions</td><td class="check hl">7 Categories</td><td class="cross">No</td><td class="cross">No</td><td class="cross">No</td></tr>
@@ -428,34 +430,34 @@ html,body{overflow-x:hidden}
 
   <div class="model-grid">
     <div class="model-card">
-      <div class="model-type">Agent / Vision</div>
-      <h3>Gemma 4 26B MoE</h3>
-      <p>26B brain, runs like 4B. Vision + native tools. Apache 2.0. 8 GB VRAM. 128K context.</p>
-    </div>
-    <div class="model-card">
-      <div class="model-type">Coding Agent</div>
-      <h3>Qwen3-Coder 30B</h3>
-      <p>Best coding agent. 256K context, native tool calling, abliterated variants. 16 GB VRAM.</p>
+      <div class="model-type">Chat / Vision</div>
+      <h3>Gemma 4 (E4B / 27B)</h3>
+      <p>Google flagship. Native tools + vision. Apache 2.0. E4B runs on 4 GB, 27B on 16 GB. Recommended in onboarding.</p>
     </div>
     <div class="model-card">
       <div class="model-type">Chat / Reasoning</div>
-      <h3>Qwen 3.5 Abliterated</h3>
-      <p>Best overall intelligence. 6-16 GB VRAM. Exceptional reasoning, coding, multilingual.</p>
+      <h3>Qwen 3.5 (9B / 27B / 35B MoE)</h3>
+      <p>Strongest reasoning + coding. 256K context. Abliterated variants available. 8-22 GB VRAM.</p>
     </div>
     <div class="model-card">
       <div class="model-type">Image</div>
-      <h3>FLUX.1 Dev / Schnell</h3>
-      <p>Best text-to-image. 8-10 GB VRAM. Incredible prompt following and detail.</p>
+      <h3>FLUX 2 Klein / FLUX.1</h3>
+      <p>Next-gen + classic FLUX. 8-10 GB VRAM. Text-to-Image and Image-to-Image.</p>
     </div>
     <div class="model-card">
-      <div class="model-type">Image</div>
-      <h3>Juggernaut XL V9</h3>
-      <p>Top photorealistic SDXL. 6 GB VRAM. Perfect for portraits and realistic scenes.</p>
+      <div class="model-type">Image (Uncensored)</div>
+      <h3>Z-Image Turbo</h3>
+      <p>Explicitly uncensored. 8-15 seconds per image. No safety filters. T2I + I2I. 10-16 GB VRAM.</p>
     </div>
     <div class="model-card">
-      <div class="model-type">Video</div>
-      <h3>Wan 2.1 (1.3B-14B)</h3>
-      <p>Best text-to-video. 8-12+ GB VRAM. 1.3B for speed, 14B for cinema quality.</p>
+      <div class="model-type">Video (T2V)</div>
+      <h3>Wan 2.1 / HunyuanVideo</h3>
+      <p>Text-to-video. Wan 1.3B (8 GB) for speed, 14B (12+ GB) for quality. HunyuanVideo for consistency.</p>
+    </div>
+    <div class="model-card">
+      <div class="model-type">Video (I2V)</div>
+      <h3>FramePack F1</h3>
+      <p>Image-to-video on just 6 GB VRAM. Upload an image, get video. Revolutionary next-frame prediction.</p>
     </div>
   </div>
 </section>

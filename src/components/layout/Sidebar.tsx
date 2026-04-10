@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, Trash2, Edit3, Check, X, MessageSquare, Code, Bot } from 'lucide-react'
+import { Plus, Search, Trash2, Edit3, Check, X, MessageSquare, Code } from 'lucide-react'
 import { useChatStore } from '../../stores/chatStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useModelStore } from '../../stores/modelStore'
@@ -12,7 +12,6 @@ import type { ChatMode } from '../../types/codex'
 const MODE_TABS: { mode: ChatMode; label: string; icon: typeof Code; disabled?: boolean; tag?: string }[] = [
   { mode: 'lu', label: 'LU', icon: MessageSquare },
   { mode: 'codex', label: 'Codex', icon: Code },
-  { mode: 'openclaw', label: 'OpenClaw', icon: Bot, disabled: true, tag: 'Soon' },
 ]
 
 export function Sidebar() {
@@ -62,7 +61,7 @@ export function Sidebar() {
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.15 }}
         >
-          {/* Mode Tabs (LU | Codex | OpenClaw) */}
+          {/* Mode Tabs (LU | Codex) */}
           <div className="flex items-center gap-0.5 px-2 pt-2 pb-1">
             {MODE_TABS.map(({ mode, label, icon: Icon, disabled, tag }) => {
               const isActive = chatMode === mode

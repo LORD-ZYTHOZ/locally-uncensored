@@ -47,18 +47,6 @@ export function CodexView() {
         <div className="flex items-center gap-1.5 px-2 py-0.5 border-b border-gray-200 dark:border-white/[0.04]">
           <Code size={9} className="text-gray-500" />
           <span className="text-[0.55rem] text-gray-600 dark:text-gray-400 font-medium">Codex</span>
-          <button
-            onClick={() => updateSettings({ thinkingEnabled: !thinkingEnabled })}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded border transition-colors text-[0.5rem] ${
-              thinkingEnabled
-                ? 'border-blue-500/30 text-blue-400'
-                : 'border-gray-200 dark:border-white/[0.06] text-gray-400 dark:text-gray-600'
-            }`}
-            title={thinkingEnabled ? 'Thinking ON — model reasons before answering' : 'Thinking OFF'}
-          >
-            <Brain size={8} />
-            <span>Think</span>
-          </button>
           <div className="flex-1" />
           <TokenCounter />
           <MemoryDebugToggle />

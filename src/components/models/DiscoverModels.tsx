@@ -200,9 +200,12 @@ export function DiscoverModels({ category }: Props) {
     return match ? parseInt(match[1]) : 99
   }
 
-  // Sort bundles: HOT first, then recommended (fits VRAM), then by size
+  // Sort bundles: verified first, then HOT, then fits VRAM, then by size
   const sortedBundles = [...bundles].sort((a, b) => {
-    // HOT models always first
+    // Verified models always first
+    if (a.verified && !b.verified) return -1
+    if (!a.verified && b.verified) return 1
+    // HOT models next
     if (a.hot && !b.hot) return -1
     if (!a.hot && b.hot) return 1
     if (systemVRAM) {
@@ -499,10 +502,18 @@ export function DiscoverModels({ category }: Props) {
             const complete = isBundleComplete(bundle)
             const downloading = isBundleDownloading(bundle) || installingBundle === bundle.name
             const bundleProgress = getBundleProgress(bundle)
+            const isComingSoon = !bundle.verified && !complete
 
             return (
               <motion.div key={bundle.name} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: bi * 0.03 }}>
-                <GlassCard className="p-3">
+                <GlassCard className={`p-3 relative overflow-hidden ${isComingSoon ? 'opacity-50' : ''}`}>
+                  {isComingSoon && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-xl">
+                      <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-semibold tracking-wider">
+                        COMING SOON
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-1.5">

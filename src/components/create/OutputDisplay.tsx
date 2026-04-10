@@ -190,12 +190,6 @@ export function OutputDisplay() {
           </button>
           <span>·</span>
           <span>{latest.width}x{latest.height}</span>
-          {lastGenTime && (
-            <>
-              <span>·</span>
-              <span>{lastGenTime}</span>
-            </>
-          )}
         </div>
       </div>
 
