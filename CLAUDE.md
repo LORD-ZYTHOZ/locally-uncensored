@@ -79,8 +79,9 @@ src-tauri/src/commands/      — Rust commands: install, process, download, prox
 45. **FramePack DualCLIPLoader fix** — CLIPLoader type "wan" creates Llama2 with 128256 vocab but llava_llama3 has 128320 tokens. Fixed: use DualCLIPLoader (clip_l + llava_llama3) with type "hunyuan_video". Added CLIPVisionLoader + CLIPVisionEncode for image_embeds. Full I2V pipeline verified in .exe (OOM on 12GB VRAM = hardware limit, not software bug).
 
 ### What's LEFT to finish v2.3.0:
-1. **Tauri proxy_localhost investigation** — reqwest in Tauri subprocess can't reach localhost. Direct fetch workaround in place but root cause unknown. Low priority since workaround works. Deferred to next release.
-2. **LTX VAEDecode reference** — dynamic-workflow.ts line 263: vaeSourceId incorrectly points to UNETLoader output for LTX strategy. Fix when LTX model is installed for testing.
+1. **Z-Image Turbo/Base strategy** — Z-Image is classified as `flux2` but uses `qwen_3_4b` CLIP (not `t5xxl`). KSampler shape mismatch: [2560] vs [512, 7680]. Needs its own ModelType + strategy with correct CLIPLoader config. Z-Image Base likely has the same issue.
+2. **Tauri proxy_localhost investigation** — reqwest in Tauri subprocess can't reach localhost. Direct fetch workaround in place but root cause unknown. Low priority since workaround works. Deferred to next release.
+3. **LTX VAEDecode reference** — dynamic-workflow.ts line 263: vaeSourceId incorrectly points to UNETLoader output for LTX strategy. Fix when LTX model is installed for testing.
 
 ### Files modified in this branch (30+ files):
 - `src/api/comfyui.ts` — 7 new ModelTypes, COMPONENT_REGISTRY, uploadImage(), inputImage in VideoParams
