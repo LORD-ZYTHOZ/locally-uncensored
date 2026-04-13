@@ -105,3 +105,32 @@ pub async fn pick_folder(default_path: Option<String>) -> Result<Option<String>,
     let result = dialog.pick_folder().await;
     Ok(result.map(|f| f.path().to_string_lossy().to_string()))
 }
+
+/// Exit the app (used by auto-updater to let NSIS installer run)
+#[tauri::command]
+pub fn exit_app() {
+    std::process::exit(0);
+}
+
+/// Get the persistent settings dir (%APPDATA%/Locally Uncensored/) — outside NSIS install dir
+fn persistent_dir() -> Result<std::path::PathBuf, String> {
+    let appdata = std::env::var("APPDATA").map_err(|_| "APPDATA not set".to_string())?;
+    Ok(std::path::PathBuf::from(appdata).join("Locally Uncensored"))
+}
+
+/// Check if onboarding was completed (marker file in %APPDATA%, survives NSIS updates)
+#[tauri::command]
+pub fn is_onboarding_done() -> bool {
+    persistent_dir()
+        .map(|dir| dir.join("onboarding_done").exists())
+        .unwrap_or(false)
+}
+
+/// Persist onboarding completion to %APPDATA% (outside NSIS install dir)
+#[tauri::command]
+pub fn set_onboarding_done() -> Result<(), String> {
+    let dir = persistent_dir()?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("onboarding_done"), "1").map_err(|e| e.to_string())?;
+    Ok(())
+}

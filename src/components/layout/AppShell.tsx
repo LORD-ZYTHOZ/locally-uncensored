@@ -13,19 +13,28 @@ import { useUIStore } from '../../stores/uiStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useProviderStore } from '../../stores/providerStore'
 import { detectLocalBackends, type DetectedBackend } from '../../lib/backend-detector'
+import { backendCall, isTauri } from '../../api/backend'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { ShortcutsModal } from './ShortcutsModal'
 import { Titlebar } from './Titlebar'
 
 export function AppShell() {
   const { currentView } = useUIStore()
-  const { settings } = useSettingsStore()
+  const { settings, updateSettings } = useSettingsStore()
   const onboardingDone = useSettingsStore((s) => s.settings.onboardingDone)
 
   const [detectedBackends, setDetectedBackends] = useState<DetectedBackend[]>([])
   const [showSelector, setShowSelector] = useState(false)
 
   useKeyboardShortcuts()
+
+  // Recover onboarding state from filesystem if localStorage was wiped by NSIS update
+  useEffect(() => {
+    if (onboardingDone || !isTauri()) return
+    backendCall<boolean>('is_onboarding_done').then((done) => {
+      if (done) updateSettings({ onboardingDone: true })
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', settings.theme === 'dark')

@@ -18,6 +18,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             // Process management
@@ -54,6 +55,9 @@ fn main() {
             commands::system::process_list,
             commands::system::screenshot,
             commands::system::pick_folder,
+            commands::system::is_onboarding_done,
+            commands::system::set_onboarding_done,
+            commands::system::exit_app,
             // Downloads
             commands::download::download_model,
             commands::download::download_model_to_path,

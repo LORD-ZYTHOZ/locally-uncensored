@@ -3,15 +3,17 @@ import { Plug, ChevronDown, Bone, User } from 'lucide-react'
 import { useSettingsStore } from '../../stores/settingsStore'
 import type { CavemanMode } from '../../types/settings'
 
-const CAVEMAN_MODES: { value: CavemanMode; label: string }[] = [
-  { value: 'off', label: 'Off' },
-  { value: 'lite', label: 'Lite' },
-  { value: 'full', label: 'Full' },
-  { value: 'ultra', label: 'Ultra' },
+const CAVEMAN_MODES: { value: CavemanMode; label: string; desc: string }[] = [
+  { value: 'off', label: 'Off', desc: 'Normal responses' },
+  { value: 'lite', label: 'Lite', desc: 'Slightly shorter' },
+  { value: 'full', label: 'Full', desc: 'Very terse' },
+  { value: 'ultra', label: 'Ultra', desc: 'Maximum brevity' },
 ]
 
 export function PluginsDropdown() {
   const [open, setOpen] = useState(false)
+  const [cavemanOpen, setCavemanOpen] = useState(false)
+  const [personaOpen, setPersonaOpen] = useState(false)
   const { getActivePersona, setActivePersona } = useSettingsStore()
   const activePersona = getActivePersona()
   const allPersonas = useSettingsStore((s) => s.personas)
@@ -20,6 +22,7 @@ export function PluginsDropdown() {
 
   const isCavemanActive = cavemanMode && cavemanMode !== 'off'
   const isPersonaActive = activePersona && activePersona.id !== 'unrestricted'
+  const currentCaveman = CAVEMAN_MODES.find((m) => m.value === (cavemanMode || 'off'))
 
   return (
     <div className="relative">
@@ -41,58 +44,97 @@ export function PluginsDropdown() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 z-50 w-48 max-h-[300px] overflow-y-auto scrollbar-thin rounded-lg bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-xl py-1">
+          <div className="absolute right-0 top-full mt-1 z-50 w-56 rounded-lg bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-xl py-1.5">
 
-            {/* Caveman Mode */}
-            <div className="px-2 py-1">
-              <div className="flex items-center gap-1 text-[0.5rem] text-gray-500 font-medium uppercase tracking-wider mb-1">
-                <Bone size={8} />
-                Caveman Mode
-              </div>
-              <div className="flex gap-0.5">
-                {CAVEMAN_MODES.map((mode) => (
-                  <button
-                    key={mode.value}
-                    onClick={() => updateSettings({ cavemanMode: mode.value })}
-                    className={`flex-1 text-center py-0.5 rounded text-[0.5rem] font-medium transition-colors ${
-                      (cavemanMode || 'off') === mode.value
-                        ? mode.value === 'off'
-                          ? 'bg-white/10 text-gray-300'
-                          : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-                    }`}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
-              </div>
+            {/* ── Caveman Mode Dropdown ───────────────────── */}
+            <div className="px-2.5">
+              <button
+                onClick={() => { setCavemanOpen(!cavemanOpen); setPersonaOpen(false) }}
+                className="w-full flex items-center justify-between py-1.5 group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Bone size={10} className={isCavemanActive ? 'text-amber-400' : 'text-gray-400'} />
+                  <span className="text-[0.6rem] font-medium text-gray-600 dark:text-gray-300">Caveman Mode</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className={`text-[0.55rem] ${isCavemanActive ? 'text-amber-400' : 'text-gray-500'}`}>
+                    {currentCaveman?.label || 'Off'}
+                  </span>
+                  <ChevronDown size={9} className={`text-gray-500 transition-transform ${cavemanOpen ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+
+              {cavemanOpen && (
+                <div className="pb-1.5 space-y-0.5">
+                  {CAVEMAN_MODES.map((mode) => {
+                    const isActive = (cavemanMode || 'off') === mode.value
+                    return (
+                      <button
+                        key={mode.value}
+                        onClick={() => { updateSettings({ cavemanMode: mode.value }); setCavemanOpen(false) }}
+                        className={`w-full flex items-center justify-between px-2 py-1 rounded text-left transition-colors ${
+                          isActive
+                            ? mode.value === 'off'
+                              ? 'bg-gray-100 dark:bg-white/[0.06] text-gray-700 dark:text-gray-200'
+                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.04] hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {isActive && <div className={`w-1 h-1 rounded-full shrink-0 ${mode.value === 'off' ? 'bg-gray-400' : 'bg-amber-400'}`} />}
+                          <span className="text-[0.55rem] font-medium">{mode.label}</span>
+                        </div>
+                        <span className="text-[0.5rem] text-gray-400">{mode.desc}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="border-t border-gray-200 dark:border-white/[0.06] my-1" />
 
-            {/* Personas */}
-            <div className="px-2 py-0.5">
-              <div className="flex items-center gap-1 text-[0.5rem] text-gray-500 font-medium uppercase tracking-wider mb-1">
-                <User size={8} />
-                Personas
-              </div>
-            </div>
-            {allPersonas.map((p) => (
+            {/* ── Personas Dropdown ───────────────────────── */}
+            <div className="px-2.5">
               <button
-                key={p.id}
-                onClick={() => { setActivePersona(p.id); setOpen(false) }}
-                className={`w-full text-left px-3 py-1 text-[0.55rem] transition-colors flex items-center gap-1.5 ${
-                  p.id === activePersona?.id
-                    ? 'text-white bg-white/[0.04]'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
-                }`}
+                onClick={() => { setPersonaOpen(!personaOpen); setCavemanOpen(false) }}
+                className="w-full flex items-center justify-between py-1.5 group"
               >
-                {p.id === activePersona?.id && (
-                  <div className="w-1 h-1 rounded-full bg-green-400 shrink-0" />
-                )}
-                {p.name}
+                <div className="flex items-center gap-1.5">
+                  <User size={10} className={isPersonaActive ? 'text-green-400' : 'text-gray-400'} />
+                  <span className="text-[0.6rem] font-medium text-gray-600 dark:text-gray-300">Persona</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className={`text-[0.55rem] truncate max-w-[80px] ${isPersonaActive ? 'text-green-400' : 'text-gray-500'}`}>
+                    {activePersona?.name || 'Unrestricted'}
+                  </span>
+                  <ChevronDown size={9} className={`text-gray-500 transition-transform ${personaOpen ? 'rotate-180' : ''}`} />
+                </div>
               </button>
-            ))}
+
+              {personaOpen && (
+                <div className="pb-1.5 space-y-0.5 max-h-[180px] overflow-y-auto scrollbar-thin">
+                  {allPersonas.map((p) => {
+                    const isActive = p.id === activePersona?.id
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => { setActivePersona(p.id); setPersonaOpen(false) }}
+                        className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-left transition-colors ${
+                          isActive
+                            ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                            : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.04] hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
+                      >
+                        {isActive && <div className="w-1 h-1 rounded-full bg-green-400 shrink-0" />}
+                        <span className="text-[0.55rem] font-medium">{p.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
           </div>
         </>
       )}
