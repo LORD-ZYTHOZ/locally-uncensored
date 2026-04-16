@@ -57,27 +57,25 @@ export function DownloadBadge() {
 
   return (
     <div ref={ref} className="relative">
-      {/* Icon button */}
+      {/* Text trigger — AE style */}
       <button
         onClick={() => setOpen(!open)}
-        className={`relative p-1.5 rounded-md transition-colors ${
-          hasAny
-            ? 'text-blue-400 hover:bg-blue-500/10'
-            : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5'
+        className={`relative text-[0.65rem] font-medium tracking-wider uppercase transition-colors ${
+          totalActive > 0
+            ? 'text-blue-400 hover:text-blue-300'
+            : hasAny
+              ? 'text-blue-400/70 hover:text-blue-300'
+              : 'text-gray-500 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white'
         }`}
-        title="Downloads"
       >
-        <ArrowDownToLine size={14} />
-        {/* Badge */}
+        Downloads
+        {/* Active dot */}
         {totalActive > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-blue-500 text-[0.5rem] font-bold text-white leading-none px-0.5">
-            {totalActive}
-            <span className="absolute inset-0 rounded-full bg-blue-500 animate-ping opacity-40" />
-          </span>
+          <span className="absolute -top-0.5 -right-2 w-1.5 h-1.5 rounded-full bg-blue-400" />
         )}
-        {/* Paused indicator */}
+        {/* Paused dot */}
         {totalActive === 0 && (textEntries.some(([, s]) => s.paused) || comfyEntries.some(([, d]) => d.status === 'paused')) && (
-          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-yellow-500" />
+          <span className="absolute -top-0.5 -right-2 w-1.5 h-1.5 rounded-full bg-yellow-500" />
         )}
       </button>
 
