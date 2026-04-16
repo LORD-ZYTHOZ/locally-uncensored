@@ -23,7 +23,7 @@ import { explainError as explainToolError } from '../api/agents/error-hints'
 import { budgetFromSettings } from '../api/agents/budget'
 import { finalStripThinkingTags } from '../lib/thinking-stripper'
 import { ollamaUrl, localFetchStream } from '../api/backend'
-import { repairToolCallArgs } from '../lib/tool-call-repair'
+import { repairToolCallArgs, extractToolCallsFromContent } from '../lib/tool-call-repair'
 
 const CODEX_SYSTEM_PROMPT = `You are Codex, an autonomous coding agent inside Locally Uncensored. You execute coding tasks end-to-end by reading files, writing code, and running shell commands. You MUST use tools — never guess file contents.
 
@@ -392,6 +392,25 @@ export function useCodex() {
             if (keepThinking && turn.thinking) {
               thinkingContent += (thinkingContent ? '\n\n' : '') + turn.thinking
               useChatStore.getState().updateMessageThinking(convId!, assistantMsg.id, thinkingContent)
+            }
+
+            // v2.5.0 fix (post-merge bug hunt): some Ollama models
+            // (qwen2.5-coder:3b confirmed) emit tool calls as a fenced
+            // ```json { "name":..., "arguments":... } ``` block inside
+            // message.content INSTEAD of the native message.tool_calls
+            // array. When the native list is empty but content looks like
+            // a tool call, extract it and strip the fence so the user
+            // doesn't see raw JSON.
+            if (toolCalls.length === 0 && turnContent) {
+              const extracted = extractToolCallsFromContent(turnContent)
+              if (extracted.length > 0) {
+                toolCalls = extracted.map(tc => ({ function: { name: tc.name, arguments: tc.arguments } }))
+                // Strip ```json ... ``` fences that wrap the extracted call
+                // so the chat bubble isn't just a big code block.
+                turnContent = turnContent
+                  .replace(/```(?:json)?\s*\{[\s\S]*?\}\s*```/g, '')
+                  .trim()
+              }
             }
           } else {
             // ── Non-streaming fallback for OpenAI/Anthropic providers ──

@@ -215,6 +215,32 @@ describe('tool-call-repair', () => {
       expect(extractToolCallsFromContent('Hello, how are you?')).toEqual([])
     })
 
+    // v2.5.0 regression test: qwen2.5-coder:3b emits tool calls wrapped
+    // in a markdown code-fence instead of Ollama's native tool_calls
+    // array. The extractor MUST find the call so useCodex can fall back.
+    it('extracts tool call from markdown code-fence (qwen2.5-coder pattern)', () => {
+      const content = '```json\n{\n  "name": "file_read",\n  "arguments": {\n    "path": "demo.js"\n  }\n}\n```'
+      const calls = extractToolCallsFromContent(content)
+      expect(calls).toHaveLength(1)
+      expect(calls[0].name).toBe('file_read')
+      expect(calls[0].arguments).toEqual({ path: 'demo.js' })
+    })
+
+    it('extracts multiline tool call with whitespace between keys', () => {
+      const content = `Some text before.
+\`\`\`json
+{
+  "name": "shell_execute",
+  "arguments": { "command": "ls -la" }
+}
+\`\`\`
+And after.`
+      const calls = extractToolCallsFromContent(content)
+      expect(calls).toHaveLength(1)
+      expect(calls[0].name).toBe('shell_execute')
+      expect(calls[0].arguments.command).toBe('ls -la')
+    })
+
     it('returns empty array for empty string', () => {
       expect(extractToolCallsFromContent('')).toEqual([])
     })
