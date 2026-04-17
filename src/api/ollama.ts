@@ -197,7 +197,10 @@ export async function loadModel(name: string): Promise<void> {
     body: JSON.stringify({ model: name, prompt: "", stream: false, keep_alive: "10m" }),
   })
   if (!res.ok) {
-    console.warn(`[ollama] failed to load model "${name}":`, res.status)
+    const { parseOllamaError, ModelLoadError } = await import("../lib/ollama-errors")
+    const parsed = await parseOllamaError(res, `HTTP ${res.status}`)
+    console.warn(`[ollama] failed to load model "${name}":`, res.status, parsed.message)
+    throw new ModelLoadError(parsed, name)
   }
   // Consume response to ensure model is fully loaded
   try { await res.json() } catch {}
@@ -209,7 +212,10 @@ export async function unloadModel(name: string): Promise<void> {
     body: JSON.stringify({ model: name, prompt: "", keep_alive: 0 }),
   })
   if (!res.ok) {
-    console.warn(`[ollama] failed to unload model "${name}":`, res.status)
+    const { parseOllamaError, ModelLoadError } = await import("../lib/ollama-errors")
+    const parsed = await parseOllamaError(res, `HTTP ${res.status}`)
+    console.warn(`[ollama] failed to unload model "${name}":`, res.status, parsed.message)
+    throw new ModelLoadError(parsed, name)
   }
 }
 

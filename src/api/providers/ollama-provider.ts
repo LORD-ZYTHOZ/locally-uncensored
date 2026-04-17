@@ -240,21 +240,12 @@ export class OllamaProvider implements ProviderClient {
 
   private async extractError(res: Response, fallback: string): Promise<string> {
     try {
-      const data = await res.json()
-      const raw = data.error || fallback
-      // Ollama 0.20+ strict-rejects models with stale `capabilities` metadata
-      // (pulled before Ollama 0.15). Give the user an actionable remediation
-      // instead of the cryptic "X does not support chat/completion".
-      // Regex is tolerant to prefixes (e.g. Rust proxy wraps as "HTTP 400: {...}")
-      // with embedded \"…\" escapes, and to the model name being quoted or not.
-      // The [\\'"]* classes swallow any combination of escape backslashes and
-      // JSON-encoded quotes around the model identifier.
-      const m = typeof raw === 'string' && raw.match(/[\\'"]*([\w.:/\-]+?)[\\'"]*\s+does not support (chat|completion)/i)
-      if (m) {
-        const name = m[1]
-        return `Ollama rejected "${name}" — its manifest is stale (pulled before Ollama 0.15). Open a terminal and run: ollama pull ${name}   Then reload the model.`
-      }
-      return raw
+      // Share the detection logic with loadModel / unloadModel via ollama-errors.
+      // The regex there matches chat, completion, AND generate (the Lichtschalter
+      // path uses /api/generate with an empty prompt for preload — same error class).
+      const { parseOllamaError, chatStyleMessage } = await import('../../lib/ollama-errors')
+      const parsed = await parseOllamaError(res, fallback)
+      return chatStyleMessage(parsed)
     } catch {
       return fallback
     }

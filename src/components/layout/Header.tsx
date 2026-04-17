@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Menu, Loader2, Power, Sun, Moon } from 'lucide-react'
+import { Menu, Loader2, Power, Sun, Moon, RefreshCw, X } from 'lucide-react'
 import { useUIStore } from '../../stores/uiStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useChatStore } from '../../stores/chatStore'
@@ -11,6 +11,8 @@ import { DownloadBadge } from './DownloadBadge'
 import { CreateTopControls } from '../create/CreateTopControls'
 import { loadModel, unloadModel, listRunningModels } from '../../api/ollama'
 import { getProviderIdFromModel } from '../../api/providers'
+import { ModelLoadError } from '../../lib/ollama-errors'
+import { useModels } from '../../hooks/useModels'
 
 export function Header() {
   const { currentView, toggleSidebar, setView } = useUIStore()
@@ -19,18 +21,29 @@ export function Header() {
   const activeModel = useModelStore((s) => s.activeModel)
   const [loadingState, setLoadingState] = useState<'idle' | 'loading' | 'unloading'>('idle')
   const [isModelLoaded, setIsModelLoaded] = useState(false)
+  // Stale-manifest notice shown next to the Lichtschalter when Ollama rejects
+  // the model with "does not support (chat|completion|generate)". Offers a
+  // one-click refresh that re-pulls the model (progress tracked in DownloadBadge).
+  const [staleError, setStaleError] = useState<{ model: string; message: string } | null>(null)
+  const { pullModel, isPullingModel } = useModels()
 
   // Check if active model is an Ollama model
   const isOllamaModel = activeModel ? getProviderIdFromModel(activeModel) === 'ollama' : false
   const modelToUse = activeModel?.includes('::') ? activeModel.split('::')[1] : activeModel
+  const isRefreshing = modelToUse ? isPullingModel(modelToUse) : false
 
   const handleLoad = async () => {
     if (!modelToUse || loadingState !== 'idle') return
+    setStaleError(null)
     setLoadingState('loading')
     try {
       await loadModel(modelToUse)
       setIsModelLoaded(true)
-    } catch {}
+    } catch (e) {
+      if (e instanceof ModelLoadError && e.kind === 'stale-manifest') {
+        setStaleError({ model: e.model, message: e.message })
+      }
+    }
     finally { setLoadingState('idle') }
   }
 
@@ -40,8 +53,28 @@ export function Header() {
     try {
       await unloadModel(modelToUse)
       setIsModelLoaded(false)
-    } catch {}
+    } catch (e) {
+      if (e instanceof ModelLoadError && e.kind === 'stale-manifest') {
+        setStaleError({ model: e.model, message: e.message })
+      }
+    }
     finally { setLoadingState('idle') }
+  }
+
+  const handleRefreshStale = async () => {
+    if (!staleError) return
+    const name = staleError.model
+    // pullModel wires into the DownloadBadge via useModels' activePulls store —
+    // user sees progress in the header badge. After the pull completes,
+    // re-attempt the load automatically.
+    try {
+      await pullModel(name)
+      setStaleError(null)
+      // pullModel resolves when the stream ends; give Ollama a beat then retry.
+      setTimeout(() => { handleLoad() }, 300)
+    } catch {
+      // error stays visible — user can click Refresh again
+    }
   }
 
   // Check loaded state when model changes
@@ -125,36 +158,44 @@ export function Header() {
         <ModelSelector />
         {isOllamaModel && (
           (() => {
-            const busy = loadingState !== 'idle'
+            const busy = loadingState !== 'idle' || isRefreshing
+            const hasStale = !!staleError
             const onClick = () => {
               if (busy) return
+              if (hasStale) return   // user uses the Refresh chip instead
               if (isModelLoaded) handleUnload()
               else handleLoad()
             }
             const title = busy
-              ? (loadingState === 'loading' ? 'Loading model…' : 'Unloading model…')
-              : (isModelLoaded ? 'Model loaded — click to unload' : 'Model not loaded — click to load into VRAM')
+              ? (isRefreshing ? 'Refreshing model…' : loadingState === 'loading' ? 'Loading model…' : 'Unloading model…')
+              : hasStale
+                ? `Model "${staleError!.model}" has a stale manifest — click Refresh`
+                : (isModelLoaded ? 'Model loaded — click to unload' : 'Model not loaded — click to load into VRAM')
             return (
               <button
                 onClick={onClick}
-                disabled={busy}
+                disabled={busy || hasStale}
                 title={title}
                 aria-label={title}
                 className={`relative flex items-center h-[18px] w-[34px] rounded-full transition-colors duration-200 ${
                   busy
                     ? 'bg-amber-500/25 border border-amber-400/40'
-                    : isModelLoaded
-                      ? 'bg-green-500/25 border border-green-400/50'
-                      : 'bg-red-500/20 border border-red-400/40 hover:bg-red-500/30'
+                    : hasStale
+                      ? 'bg-red-500/30 border border-red-400/60 animate-pulse'
+                      : isModelLoaded
+                        ? 'bg-green-500/25 border border-green-400/50'
+                        : 'bg-red-500/20 border border-red-400/40 hover:bg-red-500/30'
                 }`}
               >
                 <span
                   className={`absolute top-[1px] flex items-center justify-center w-[14px] h-[14px] rounded-full shadow-sm transition-all duration-200 ${
                     busy
                       ? 'left-[9px] bg-amber-400'
-                      : isModelLoaded
-                        ? 'left-[18px] bg-green-400'
-                        : 'left-[1px] bg-red-400'
+                      : hasStale
+                        ? 'left-[1px] bg-red-500'
+                        : isModelLoaded
+                          ? 'left-[18px] bg-green-400'
+                          : 'left-[1px] bg-red-400'
                   }`}
                 >
                   {busy ? (
@@ -166,6 +207,37 @@ export function Header() {
               </button>
             )
           })()
+        )}
+        {isOllamaModel && staleError && (
+          <div
+            className="ml-1.5 flex items-center gap-1 px-1.5 py-[2px] rounded-md bg-amber-500/10 border border-amber-400/30 text-[0.6rem]"
+            title={staleError.message}
+          >
+            <span className="text-amber-600 dark:text-amber-300 font-medium">
+              stale — refresh?
+            </span>
+            <button
+              onClick={handleRefreshStale}
+              disabled={isRefreshing}
+              className="flex items-center gap-0.5 px-1 py-[1px] rounded text-amber-700 dark:text-amber-200 hover:bg-amber-500/20 disabled:opacity-50 transition-colors"
+              title={`Re-pull ${staleError.model}`}
+            >
+              {isRefreshing ? (
+                <Loader2 size={9} className="animate-spin" />
+              ) : (
+                <RefreshCw size={9} />
+              )}
+              <span>Refresh</span>
+            </button>
+            <button
+              onClick={() => setStaleError(null)}
+              className="flex items-center p-[1px] rounded text-amber-600/70 hover:text-amber-800 hover:bg-amber-500/20 transition-colors"
+              title="Dismiss"
+              aria-label="Dismiss"
+            >
+              <X size={9} />
+            </button>
+          </div>
         )}
           </>
         )}
