@@ -31,6 +31,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Build from the release's target branch (master) instead of the tag ref.
+          # Prevents shipping a stale snapshot when fixes land after tag creation
+          # but before the release is published.
+          ref: ${{ github.event.release.target_commitish || 'master' }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

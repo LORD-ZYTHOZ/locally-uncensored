@@ -241,7 +241,16 @@ export class OllamaProvider implements ProviderClient {
   private async extractError(res: Response, fallback: string): Promise<string> {
     try {
       const data = await res.json()
-      return data.error || fallback
+      const raw = data.error || fallback
+      // Ollama 0.20+ strict-rejects models with stale `capabilities` metadata
+      // (pulled before Ollama 0.15). Give the user an actionable remediation
+      // instead of the cryptic "X does not support chat/completion".
+      const m = typeof raw === 'string' && raw.match(/^['"]?([^'"]+?)['"]?\s+does not support (chat|completion)$/i)
+      if (m) {
+        const name = m[1]
+        return `Ollama rejected "${name}" — its manifest is stale (pulled before Ollama 0.15). Open a terminal and run: ollama pull ${name}   Then reload the model.`
+      }
+      return raw
     } catch {
       return fallback
     }
