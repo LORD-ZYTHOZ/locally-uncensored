@@ -101,9 +101,26 @@ export function Header() {
 
   // When the startup health scan flags this model as stale, pre-populate the
   // chip so the user sees it WITHOUT having to click the broken toggle first.
+  // Also clear the chip when the user switches to a fresh model, OR when the
+  // chip was pinned to a DIFFERENT model than the one currently selected
+  // (otherwise the red Lichtschalter and chip from the old stale model
+  // leak onto the new fresh model).
   useEffect(() => {
-    if (!modelToUse || !isOllamaModel) return
-    if (healthStaleModels.includes(modelToUse) && !staleError) {
+    if (!modelToUse || !isOllamaModel) {
+      if (staleError) setStaleError(null)
+      return
+    }
+    const isStale = healthStaleModels.includes(modelToUse)
+    if (isStale && !staleError) {
+      setStaleError({
+        model: modelToUse,
+        message: `Model "${modelToUse}" has a stale manifest. Run "ollama pull ${modelToUse}" to refresh.`,
+      })
+    } else if (!isStale && staleError) {
+      // User switched to a fresh model — drop the stale chip from the previous one.
+      setStaleError(null)
+    } else if (staleError && staleError.model !== modelToUse) {
+      // Stale chip was for a different model; re-pin to the current one (it's stale too).
       setStaleError({
         model: modelToUse,
         message: `Model "${modelToUse}" has a stale manifest. Run "ollama pull ${modelToUse}" to refresh.`,
