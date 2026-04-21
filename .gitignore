@@ -52,3 +52,10 @@ producthunt-launch.md
 .preview-mobile/
 .claude/plans/
 BLOCKED.md
+
+# Discord secrets (added 2026-04-21)
+.env.webhooks
+discord_invite.txt
+carl-bot-setup.md
+app-discord-integration.md
+SETUP_REPORT.md

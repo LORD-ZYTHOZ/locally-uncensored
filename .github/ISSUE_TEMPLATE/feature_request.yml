@@ -57,3 +57,9 @@ body:
         - Can't live without it
     validations:
       required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        _Prefer chat? Join the Discord: https://discord.gg/nHnGnDw2c8_

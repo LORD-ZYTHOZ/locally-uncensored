@@ -88,3 +88,9 @@ body:
     attributes:
       label: Screenshots
       description: Drag and drop screenshots if they help explain the issue.
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        _Prefer chat? Join the Discord: https://discord.gg/nHnGnDw2c8_
